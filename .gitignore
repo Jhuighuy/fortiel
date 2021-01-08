@@ -130,3 +130,6 @@ dmypy.json
 
 # PyCharm IDE
 .idea
+
+# Fortran output files
+*.out.f90
