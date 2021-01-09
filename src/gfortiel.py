@@ -29,6 +29,7 @@ import tempfile
 import sys
 import os
 from typing import List, Tuple
+from fortiel import tielPreprocess
 
 _FORTRAN_EXT = [".f", ".for", ".f90", ".f03", ".f08"]
 
@@ -38,9 +39,10 @@ def _gfortielParseArguments() -> Tuple[List[str], List[str]]:
   arguments: List[str] = []
   filePaths: List[str] = []
   for arg in sys.argv[1:]:
-    isInputFile = not (arg.startswith("-")
-                       or (len(arguments) > 0
-                           and arguments[-1] == "-o"))
+    isInputFile = \
+      not (arg.startswith("-")
+           or (len(arguments) > 0
+               and arguments[-1] == "-o"))
     if isInputFile:
       ext = os.path.splitext(arg)[1]
       isInputFile = ext.lower() in _FORTRAN_EXT
@@ -51,8 +53,8 @@ def _gfortielParseArguments() -> Tuple[List[str], List[str]]:
   return arguments, filePaths
 
 
-def _gfortielPreprocess(filePath: str, outputFilePath: str) -> None:
-  from fortiel import tielPreprocess
+def _gfortielPreprocess(filePath: str,
+                        outputFilePath: str) -> None:
   tielPreprocess(filePath, outputFilePath)
 
 
