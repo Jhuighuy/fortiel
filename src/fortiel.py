@@ -147,7 +147,7 @@ def _regExpr(pattern: str) -> Pattern[str]:
   return re.compile(pattern, re.IGNORECASE)
 
 
-_DIR = _regExpr(r'^\s*#\s*fpp\s+(?P<dir>(?P<head>\w+).*\b)\s*(!.*)?$')
+_DIR = _regExpr(r'^\s*#\s*fpp\s+(?P<dir>.*\b)\s*(!.*)?$')
 
 _IF = _regExpr(r'^if\s*\((?P<cond>.+)\)\s*then$')
 _ELSE_IF = _regExpr(r'^else\s*if\s*\((?P<cond>.+)\)\s*then$')
