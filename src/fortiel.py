@@ -41,8 +41,7 @@ sys.dont_write_bytecode = True
 
 class TielError(Exception):
   '''Preprocessor syntax tree parse error.'''
-  def __init__(self, message: str,
-               filePath: str, lineNumber: int) -> None:
+  def __init__(self, message: str, filePath: str, lineNumber: int) -> None:
     super().__init__()
     self.message: str = message
     self.filePath: str = filePath
@@ -52,13 +51,6 @@ class TielError(Exception):
     message = f'{self.filePath}:{self.lineNumber}:1:\n\n' \
             + f'Fatal Error: {self.message}'
     return ''.join(message)
-
-
-class TielEndError(TielError):
-  '''Unexpected end of file preprocessor error.'''
-  def __init__(self,
-               filePath: str, lineNumber: int):
-    super().__init__('unexpected end of file', filePath, lineNumber)
 
 
 class TielDirError(TielError):
@@ -71,6 +63,12 @@ class TielEvalError(TielError):
 
 class TielTypeError(TielError):
   '''Type error in the expression.'''
+
+
+class TielEndError(TielError):
+  '''Unexpected end of file preprocessor error.'''
+  def __init__(self, filePath: str, lineNumber: int):
+    super().__init__('unexpected end of file', filePath, lineNumber)
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -94,24 +92,21 @@ class TielTree:
 
 class TielTreeNode:
   '''Preprocessor syntax tree node.'''
-  def __init__(self,
-               filePath: str, lineNumber: int) -> None:
+  def __init__(self, filePath: str, lineNumber: int) -> None:
     self.filePath: str = filePath
     self.lineNumber: int = lineNumber
 
 
 class TielTreeNodeLineBlock(TielTreeNode):
   '''The block of regular lines syntax tree node.'''
-  def __init__(self,
-               filePath: str, lineNumber: int) -> None:
+  def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.lines: List[str] = []
 
 
 class TielTreeNodeIfElseEnd(TielTreeNode):
   '''The IF/ELSE IF/ELSE/END IF directive syntax tree node.'''
-  def __init__(self,
-               filePath: str, lineNumber: int) -> None:
+  def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.condition: str = ''
     self.thenBranch: List[TielTreeNode] = []
@@ -121,8 +116,7 @@ class TielTreeNodeIfElseEnd(TielTreeNode):
 
 class TielTreeNodeElseIf(TielTreeNode):
   '''The ELSE IF directive syntax tree node.'''
-  def __init__(self,
-               filePath: str, lineNumber: int) -> None:
+  def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.condition: str = ''
     self.branch: List[TielTreeNode] = []
@@ -130,8 +124,7 @@ class TielTreeNodeElseIf(TielTreeNode):
 
 class TielTreeNodeDoEnd(TielTreeNode):
   '''The DO/END DO directive syntax tree node.'''
-  def __init__(self,
-               filePath: str, lineNumber: int) -> None:
+  def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.indexName: str = ''
     self.bounds: str = ''
@@ -140,8 +133,7 @@ class TielTreeNodeDoEnd(TielTreeNode):
 
 class TielTreeNodeUse(TielTreeNode):
   '''The USE/INCLUDE directive syntax tree node.'''
-  def __init__(self,
-               filePath: str, lineNumber: int) -> None:
+  def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.pathToInclude: str = ''
     self.emitLineBlocks: bool = False
@@ -190,16 +182,14 @@ class TielParser:
   def _matchesEnd(self) -> bool:
     return self._curLineIndex >= len(self._lines)
 
-  def _matchLine(self,
-                 regExp: Pattern[str]) -> Match[str]:
+  def _matchLine(self, regExp: Pattern[str]) -> Match[str]:
     match = self._matchesLine(regExp)
     if match is None:
       raise RuntimeError('expected match')
     self._advanceLine()
     return match
 
-  def _matchesLine(self,
-                  *regExpList: Pattern[str]) -> Optional[Match[str]]:
+  def _matchesLine(self, *regExpList: Pattern[str]) -> Optional[Match[str]]:
     if self._matchesEnd():
       raise TielEndError(self._filePath, self._curLineNumber)
     for regExp in regExpList:
@@ -208,24 +198,36 @@ class TielParser:
         return match
     return None
 
-  def _matchDirective(self,
-                      regExp: Pattern[str]) -> Match[str]:
+  @staticmethod
+  def _getHead(directive: str) -> str:
+    dirHead, dirHead2 = re.match(r'^(?P<head>\w+)(\s+(?P<head2>\w+))?',
+                                 directive).group('head', 'head2')
+    dirHead = dirHead.lower()
+    # ELSE is merged with IF,
+    # END is merged with any following word.
+    if dirHead2 is not None:
+      dirHead2 = dirHead2.lower()
+      if dirHead == 'end' \
+        or dirHead == 'else' and dirHead2 == 'if':
+        dirHead += dirHead2
+    return dirHead
+
+  def _matchDirective(self, regExp: Pattern[str]) -> Match[str]:
     directive = self._matchLine(_DIR).group('dir')
     match = regExp.match(directive)
     if match is None:
-      raise TielDirError(f'invalid directive syntax `{directive}`',
+      dirHead = self.__class__._getHead(directive)
+      raise TielDirError(f'invalid <{dirHead}> directive syntax',
                          self._filePath, self._curLineNumber)
     return match
 
-  def _matchesDirective(self,
-                       *regExpList: Pattern[str]) -> Optional[Match[str]]:
+  def _matchesDirHead(self, *dirHeadList: str) -> Optional[str]:
     dirMatch = self._matchesLine(_DIR)
     if dirMatch is not None:
-      directive = dirMatch.group('dir')
-      for regExp in regExpList:
-        match = regExp.match(directive)
-        if match is not None:
-          return match
+      directive = dirMatch['dir'].lower()
+      dirHead = self.__class__._getHead(directive)
+      if dirHead in dirHeadList:
+        return dirHead
     return None
 
   def parse(self) -> TielTree:
@@ -254,12 +256,13 @@ class TielParser:
 
   def _parseDirective(self) -> TielTreeNode:
     '''Parse a directive.'''
-    dirHead = self._matchesLine(_DIR)['head'].lower()
+    directive = self._matchesLine(_DIR)['dir']
+    dirHead = self.__class__._getHead(directive)
     if dirHead == 'if':
       return self._parseDirectiveIfElseEnd()
     if dirHead == 'do':
       return self._parseDirectiveDoEnd()
-    if dirHead == 'use' or dirHead == 'include':
+    if dirHead in ['use', 'include']:
       return self._parseDirectiveUse()
     if dirHead == 'line' or dirHead.isdecimal():
       self._parseDirectiveLine()
@@ -267,16 +270,11 @@ class TielParser:
     # Determine the error type:
     # either the known directive is misplaced,
     # either the directive is unknown.
-    if dirHead == 'else' or dirHead == 'end':
-      dirHead = self._matchesLine(_DIR2)['head']
-      dirHead = re.sub(r'\s+', ' ', dirHead).lower()
-    dirHeadTrim = dirHead.replace(' ', '')
-    if dirHeadTrim \
-        in ['else', 'elseif', 'endif', 'enddo']:
-      raise TielDirError(f'misplaced directive `{dirHead}`',
+    if dirHead in ['else', 'elseif', 'endif', 'enddo']:
+      raise TielDirError(f'misplaced directive <{dirHead}>',
                          self._filePath, self._curLineNumber)
     else:
-      raise TielDirError(f'unknown directive `{dirHead}`',
+      raise TielDirError(f'unknown directive <{dirHead}>',
                          self._filePath, self._curLineNumber)
 
   def _parseDirectiveIfElseEnd(self) -> TielTreeNodeIfElseEnd:
@@ -286,18 +284,19 @@ class TielParser:
     node = TielTreeNodeIfElseEnd(self._filePath,
                                  self._curLineNumber)
     node.condition = self._matchDirective(_IF)['cond']
-    while not self._matchesDirective(_ELSE_IF, _ELSE, _END_IF):
+    while not self._matchesDirHead('elseif', 'else', 'endif'):
       node.thenBranch.append(self._parseSingle())
-    while not self._matchesDirective(_ELSE, _END_IF):
-      elseIfNode = TielTreeNodeElseIf(self._filePath,
-                                      self._curLineNumber)
-      elseIfNode.condition = self._matchDirective(_ELSE_IF)['cond']
-      while not self._matchesDirective(_ELSE_IF, _ELSE, _END_IF):
-        elseIfNode.branch.append(self._parseSingle())
-      node.elseIfBranches.append(elseIfNode)
-    if self._matchesDirective(_ELSE):
-      self._advanceLine()
-      while not self._matchesDirective(_END_IF):
+    if self._matchesDirHead('elseif'):
+      while not self._matchesDirHead('else', 'endif'):
+        elseIfNode = TielTreeNodeElseIf(self._filePath,
+                                        self._curLineNumber)
+        elseIfNode.condition = self._matchDirective(_ELSE_IF)['cond']
+        while not self._matchesDirHead('elseif', 'else', 'endif'):
+          elseIfNode.branch.append(self._parseSingle())
+        node.elseIfBranches.append(elseIfNode)
+    if self._matchesDirHead('else'):
+      self._matchDirective(_ELSE)
+      while not self._matchesDirHead('endif'):
         node.elseBranch.append(self._parseSingle())
     self._matchDirective(_END_IF)
     return node
@@ -310,7 +309,7 @@ class TielParser:
                              self._curLineNumber)
     node.indexName, node.bounds \
       = self._matchDirective(_DO).group('index', 'bounds')
-    while not self._matchesDirective(_END_DO):
+    while not self._matchesDirHead('enddo'):
       node.loopBody.append(self._parseSingle())
     self._matchDirective(_END_DO)
     return node
