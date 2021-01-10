@@ -148,7 +148,6 @@ def _regExpr(pattern: str) -> Pattern[str]:
 
 
 _DIR = _regExpr(r'^\s*#\s*fpp\s+(?P<dir>(?P<head>\w+).*\b)\s*(!.*)?$')
-_DIR2 = _regExpr(r'^#\s*fpp\s+(?P<head>\w+\s+\w+)(\s+.+)?(\s+\!.*)?$')
 
 _IF = _regExpr(r'^if\s*\((?P<cond>.+)\)\s*then$')
 _ELSE_IF = _regExpr(r'^else\s*if\s*\((?P<cond>.+)\)\s*then$')
@@ -208,7 +207,7 @@ class TielParser:
     if dirHead2 is not None:
       dirHead2 = dirHead2.lower()
       if dirHead == 'end' \
-        or dirHead == 'else' and dirHead2 == 'if':
+          or dirHead == 'else' and dirHead2 == 'if':
         dirHead += dirHead2
     return dirHead
 
