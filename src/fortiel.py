@@ -478,9 +478,8 @@ class TielEvaluator:
       self._evalNodeList(node.thenBranch, callback)
     else:
       for elseIfNode in node.elseIfBranches:
-        condition \
-          = self._evalExpr(elseIfNode.condition,
-                           elseIfNode.filePath, elseIfNode.lineNumber)
+        condition = self._evalExpr(elseIfNode.condition,
+                                   elseIfNode.filePath, elseIfNode.lineNumber)
         if condition:
           self._evalNodeList(elseIfNode.branch, callback)
           break
