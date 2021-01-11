@@ -31,8 +31,7 @@ import json
 from json import JSONEncoder
 from typing import \
   Any, List, Dict, Union, \
-  Callable, Optional, Pattern, Match, Iterator
-from collections.abc import Mapping
+  Callable, Optional, Pattern, Match
 
 sys.dont_write_bytecode = True
 
@@ -139,7 +138,7 @@ class TielTreeNodeLet(TielTreeNode):
     super().__init__(filePath, lineNumber)
     self.name: str = ''
     self.arguments: Optional[str] = None
-    self.body: str = ''
+    self.expression: str = ''
 
 
 class TielTreeNodeUndef(TielTreeNode):
@@ -165,7 +164,7 @@ def _regExpr(pattern: str) -> Pattern[str]:
   return re.compile(pattern, re.IGNORECASE)
 
 
-_DIR = _regExpr(r'^\s*#\s*fpp\s+(?P<dir>.*\b)\s*(!.*)?$')
+_DIR = _regExpr(r'^\s*#\s*fpp\s+(?P<dir>.*)$')
 _DIR_HEAD = _regExpr(r'^(?P<head>\w+)(\s+(?P<head2>\w+))?')
 
 _IF = _regExpr(r'^if\s*\((?P<cond>.+)\)\s*then$')
@@ -176,9 +175,9 @@ _END_IF = _regExpr(r'^end\s*if$')
 _DO = _regExpr(r'^do\s+(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$')
 _END_DO = _regExpr(r'^end\s*do$')
 
-_LET = _regExpr(r'^define\s+(?P<name>[a-zA-Z]\w*)\s*' \
+_LET = _regExpr(r'^let\s+(?P<name>[a-zA-Z]\w*)\s*' \
                 + r'(?P<args>\((?:[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)?\s*\))?\s*'
-                + r'(?P<body>.*)$')
+                + r'=\s*(?P<expr>.*)$')
 _UNDEF = _regExpr(r'^undef\s+(?P<names>[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)$')
 
 _USE = _regExpr(r'^(?P<dir>use|include)\s+(?P<path>(\".+\")|(\'.+\')|(\<.+\>))$')
@@ -236,7 +235,7 @@ class TielParser:
     return dirHead
 
   def _matchDirective(self, regExp: Pattern[str]) -> Match[str]:
-    directive = self._matchLine(_DIR).group('dir')
+    directive = self._matchLine(_DIR).group('dir').rstrip()
     match = regExp.match(directive)
     if match is None:
       dirHead = self.__class__._getHead(directive)
@@ -347,8 +346,10 @@ class TielParser:
     # evaluating or validating define arguments and body here.
     node = TielTreeNodeLet(self._filePath,
                            self._curLineNumber)
-    node.name, node.arguments, node.body \
-      = self._matchDirective(_LET).group('name', 'args', 'body')
+    node.name, node.arguments, node.expression \
+      = self._matchDirective(_LET).group('name', 'args', 'expr')
+    if node.arguments is not None:
+      node.arguments = node.arguments[1:-1].strip()
     return node
 
   def _parseDirectiveUndef(self) -> TielTreeNodeUndef:
@@ -384,29 +385,15 @@ class TielParser:
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
 
-class TielScope(Mapping):
-  '''Tree expression evaluator.'''
-  def __init__(self):
-    self._globals: Dict[str, Any] = {}
+_BUILTIN_NAMES = ['__FILE__', '__LINE__', '__INDEX__']
 
-  def __len__(self) -> int:
-    return len(self._globals)
-
-  def __getitem__(self, item: str) -> Any:
-    return self._globals[item]
-
-  def __iter__(self) -> Iterator[Any]:
-    return iter(self._globals)
-
-  def evalExpression(self, expression: str):
-    return eval(expression, {}, self)
 
 class TielEvaluator:
   '''Abstract syntax tree evaluator.'''
   def __init__(self, scope=None):
     if scope is None:
-      scope = TielScope()
-    self._scope: TielScope = scope
+      scope = {}
+    self._scope: Dict[str, Any] = scope
 
   def eval(self,
            nodeOrTree: Union[TielTree, TielTreeNode],
@@ -425,7 +412,7 @@ class TielEvaluator:
                 type=None):
     '''Evaluate macro expression.'''
     try:
-      result = eval(expression, {}, self._scope)
+      result = eval(expression, self._scope)
     except NameError as nameError:
       raise
     except TypeError as typeError:
@@ -454,11 +441,11 @@ class TielEvaluator:
       elif isinstance(node, TielTreeNodeDoEnd):
         self._evalDoEnd(node, callback)
       elif isinstance(node, TielTreeNodeLet):
-        self._evalLet(node, callback)
+        self._evalLet(node)
       elif isinstance(node, TielTreeNodeUndef):
-        self._evalUndef(node, callback)
+        self._evalUndef(node)
       elif isinstance(node, TielTreeNodeUse):
-        self._evalUse(node, callback)
+        self._evalUse(node)
       else:
         raise RuntimeError(node.__class__.__name__)
 
@@ -491,16 +478,14 @@ class TielEvaluator:
                      callback: Callable[[str], None]) -> None:
     '''Evaluate IF/ELSE IF/ELSE/END IF node.'''
     condition = self._evalExpr(node.condition,
-                               node.filePath, node.lineNumber,
-                               type=bool)
+                               node.filePath, node.lineNumber)
     if condition:
       self._evalNodeList(node.thenBranch, callback)
     else:
       for elseIfNode in node.elseIfBranches:
         condition \
           = self._evalExpr(elseIfNode.condition,
-                           elseIfNode.filePath, elseIfNode.lineNumber,
-                           type=bool)
+                           elseIfNode.filePath, elseIfNode.lineNumber)
         if condition:
           self._evalNodeList(elseIfNode.branch, callback)
           break
@@ -516,34 +501,62 @@ class TielEvaluator:
     if not isinstance(bounds, tuple) \
         or not (2 <= len(bounds) <= 3) \
         or list(map(type, bounds)) != len(bounds) * [int]:
-      raise TielEvalError('tuple of two or three integers ' +
-                          'inside `do` directive bounds is expected, ' +
-                          f' got `{node.bounds}`',
-                          node.filePath, node.lineNumber)
+      message = 'tuple of two or three integers inside the <do> ' \
+              + f' directive bounds is expected, got `{node.bounds}`'
+      raise TielEvalError(message, node.filePath, node.lineNumber)
     start, stop = bounds[0:2]
     step = bounds[2] if len(bounds) == 3 else 1
+    # Save and restore previous index value
+    # in case we are inside the nested loop.
+    prevIndex = self._scope['__INDEX__'] \
+      if '__INDEX__' in self._scope['__INDEX__'] else None
     for index in range(start, stop + 1, step):
       self._scope[node.indexName] = index
       self._scope['__INDEX__'] = index
       self._evalNodeList(node.loopBody, callback)
     del self._scope[node.indexName]
-    del self._scope['__INDEX__']
+    if prevIndex is not None:
+      self._scope['__INDEX__'] = prevIndex
+    else:
+      del self._scope['__INDEX__']
 
   def _evalLet(self,
-               node: TielTreeNodeLet,
-               callback: Callable[[str], None]) -> None:
+               node: TielTreeNodeLet) -> None:
     '''Evaluate LET directive.'''
-    print(node.__class__.__name__)
+    if node.name in self._scope:
+      message = f'name `{node.name}` is already defined'
+      raise TielEvalError(message, node.filePath, node.lineNumber)
+    if node.name in _BUILTIN_NAMES:
+        message = f'builtin name <{node.name}> can not be redefined'
+        raise TielEvalError(message, node.filePath, node.lineNumber)
+    if node.arguments is None:
+      value = self._evalExpr(node.expression,
+                             node.filePath, node.lineNumber)
+      self._scope[node.name] = value
+    else:
+      argNameList = [arg.strip() for arg in node.arguments.split(',')]
+      if len(argNameList) > len(set(argNameList)):
+        message = 'functional <let> arguments must be unique'
+        raise TielEvalError(message, node.filePath, node.lineNumber)
+      # Evaluate functional LET as lambda function.
+      func = self._evalExpr(f'lambda {node.arguments}: {node.expression}',
+                            node.filePath, node.lineNumber)
+      self._scope[node.name] = func
 
   def _evalUndef(self,
-                 node: TielTreeNodeLet,
-                 callback: Callable[[str], None]) -> None:
+                 node: TielTreeNodeUndef) -> None:
     '''Evaluate UNDEF directive.'''
-    print(node.__class__.__name__)
+    for name in node.nameList:
+      if not name in self._scope:
+        message = f'name `{name}` was not previously defined'
+        raise TielEvalError(message, node.filePath, node.lineNumber)
+      if name in _BUILTIN_NAMES:
+        message = f'builtin name <{name}> can not be undefined'
+        raise TielEvalError(message, node.filePath, node.lineNumber)
+      del self._scope[name]
 
   def _evalUse(self,
-               node: TielTreeNodeUse,
-               callback: Callable[[str], None]) -> None:
+               node: TielTreeNodeUse) -> None:
     '''Evaluate USE/INCLUDE directive.'''
     print(node.__class__.__name__)
 
