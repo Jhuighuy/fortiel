@@ -508,8 +508,7 @@ class TielEvaluator:
     step = bounds[2] if len(bounds) == 3 else 1
     # Save and restore previous index value
     # in case we are inside the nested loop.
-    prevIndex = self._scope['__INDEX__'] \
-      if '__INDEX__' in self._scope['__INDEX__'] else None
+    prevIndex = self._scope.get('__INDEX__')
     for index in range(start, stop + 1, step):
       self._scope[node.indexName] = index
       self._scope['__INDEX__'] = index
