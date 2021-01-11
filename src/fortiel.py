@@ -133,13 +133,20 @@ class TielTreeNodeDoEnd(TielTreeNode):
     self.loopBody: List[TielTreeNode] = []
 
 
-class TielTreeNodeDefine(TielTreeNode):
-  '''The DEFINE directive syntax tree node.'''
+class TielTreeNodeLet(TielTreeNode):
+  '''The LET directive syntax tree node.'''
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.name: str = ''
     self.arguments: Optional[str] = None
     self.body: str = ''
+
+
+class TielTreeNodeUndef(TielTreeNode):
+  '''The UNDEF directive syntax tree node.'''
+  def __init__(self, filePath: str, lineNumber: int) -> None:
+    super().__init__(filePath, lineNumber)
+    self.nameList: List[str] = []
 
 
 class TielTreeNodeUse(TielTreeNode):
@@ -169,9 +176,10 @@ _END_IF = _regExpr(r'^end\s*if$')
 _DO = _regExpr(r'^do\s+(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$')
 _END_DO = _regExpr(r'^end\s*do$')
 
-_DEFINE = _regExpr(r'^define\s+(?P<name>[a-zA-Z]\w*)\s*' \
-                   + r'(?P<args>\((?:[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)?\s*\))?\s*'
-                   + r'(?P<body>.*)$')
+_LET = _regExpr(r'^define\s+(?P<name>[a-zA-Z]\w*)\s*' \
+                + r'(?P<args>\((?:[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)?\s*\))?\s*'
+                + r'(?P<body>.*)$')
+_UNDEF = _regExpr(r'^undef\s+(?P<names>[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)$')
 
 _USE = _regExpr(r'^(?P<dir>use|include)\s+(?P<path>(\".+\")|(\'.+\')|(\<.+\>))$')
 
@@ -277,8 +285,10 @@ class TielParser:
       return self._parseDirectiveIfElseEnd()
     if dirHead == 'do':
       return self._parseDirectiveDoEnd()
-    if dirHead == 'define':
-      return self._parseDirectiveDefine()
+    if dirHead == 'let':
+      return self._parseDirectiveLet()
+    if dirHead == 'undef':
+      return self._parseDirectiveUndef()
     if dirHead in ['use', 'include']:
       return self._parseDirectiveUse()
     if dirHead == 'line' or dirHead.isdecimal():
@@ -331,14 +341,24 @@ class TielParser:
     self._matchDirective(_END_DO)
     return node
 
-  def _parseDirectiveDefine(self) -> TielTreeNodeDefine:
-    '''Parse DEFINE directive.'''
+  def _parseDirectiveLet(self) -> TielTreeNodeLet:
+    '''Parse LET directive.'''
     # Note that we are not
     # evaluating or validating define arguments and body here.
-    node = TielTreeNodeDefine(self._filePath,
-                              self._curLineNumber)
+    node = TielTreeNodeLet(self._filePath,
+                           self._curLineNumber)
     node.name, node.arguments, node.body \
-      = self._matchDirective(_DEFINE).group('name', 'args', 'body')
+      = self._matchDirective(_LET).group('name', 'args', 'body')
+    return node
+
+  def _parseDirectiveUndef(self) -> TielTreeNodeUndef:
+    '''Parse UNDEF directive.'''
+    # Note that we are not
+    # evaluating or validating define name here.
+    node = TielTreeNodeUndef(self._filePath,
+                             self._curLineNumber)
+    nameList = self._matchDirective(_UNDEF).group('names')
+    node.nameList = [name.strip() for name in nameList.split(',')]
     return node
 
   def _parseDirectiveUse(self) -> TielTreeNodeUse:
@@ -433,8 +453,10 @@ class TielEvaluator:
         self._evalIfElseEnd(node, callback)
       elif isinstance(node, TielTreeNodeDoEnd):
         self._evalDoEnd(node, callback)
-      elif isinstance(node, TielTreeNodeDefine):
-        self._evalDefine(node, callback)
+      elif isinstance(node, TielTreeNodeLet):
+        self._evalLet(node, callback)
+      elif isinstance(node, TielTreeNodeUndef):
+        self._evalUndef(node, callback)
       elif isinstance(node, TielTreeNodeUse):
         self._evalUse(node, callback)
       else:
@@ -507,10 +529,16 @@ class TielEvaluator:
     del self._scope[node.indexName]
     del self._scope['__INDEX__']
 
-  def _evalDefine(self,
-                  node: TielTreeNodeDefine,
-                  callback: Callable[[str], None]) -> None:
-    '''Evaluate DEFINE directive.'''
+  def _evalLet(self,
+               node: TielTreeNodeLet,
+               callback: Callable[[str], None]) -> None:
+    '''Evaluate LET directive.'''
+    print(node.__class__.__name__)
+
+  def _evalUndef(self,
+                 node: TielTreeNodeLet,
+                 callback: Callable[[str], None]) -> None:
+    '''Evaluate UNDEF directive.'''
     print(node.__class__.__name__)
 
   def _evalUse(self,
