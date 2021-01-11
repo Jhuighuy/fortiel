@@ -396,35 +396,24 @@ class TielEvaluator:
     self._scope: Dict[str, Any] = scope
 
   def eval(self,
-           nodeOrTree: Union[TielTree, TielTreeNode],
+           tree: TielTree,
            callback: Callable[[str], None]) -> None:
     '''Evaluate the syntax tree or the syntax tree node.'''
-    if isinstance(nodeOrTree, TielTree):
-      tree: TielTree = nodeOrTree
-      self._evalNodeList(tree.rootNodes, callback)
-    else:
-      node: TielTreeNode = nodeOrTree
-      self._evalNodeList(node, callback)
+    self._evalNodeList(tree.rootNodes, callback)
 
   def _evalExpr(self,
                 expression: str,
-                filePath: str, lineNumber: int,
-                type=None):
+                filePath: str, lineNumber: int):
     '''Evaluate macro expression.'''
     try:
       result = eval(expression, self._scope)
-    except NameError as nameError:
-      raise
-    except TypeError as typeError:
-      raise
-    except ArithmeticError as error:
-      raise TielEvalError(str(error.args),
-                          filePath, lineNumber)
-    if type is not None:
-      try:
-        result = type(result)
-      except (TypeError, ValueError) as error:
-        raise
+    except NameError as error:
+      name = 'todo'
+      message = f'name `{name}` is not defined'
+      raise TielEvalError(message, filePath, lineNumber) from error
+    except Exception as error:
+      message = f'expression evaluation exception `{str(error)}`'
+      raise TielEvalError(message, filePath, lineNumber) from error
     return result
 
   def _evalNodeList(self,
@@ -447,7 +436,29 @@ class TielEvaluator:
       elif isinstance(node, TielTreeNodeUse):
         self._evalUse(node)
       else:
-        raise RuntimeError(node.__class__.__name__)
+        nodeType = node.__class__.__name__
+        raise RuntimeError(f'no evaluator for node type {nodeType}')
+
+  def _evalLine(self,
+                line: str,
+                filePath: str, lineNumber: int,
+                callback: Callable[[str], None]) -> None:
+    '''Evaluate in-line substitutions.'''
+    # Evaluate <{}> substitutions.
+    def lineSub(match: Match[str]) -> str:
+      expression = match['expr']
+      return str(self._evalExpr(expression, filePath, lineNumber))
+    line = re.sub(r'{(?P<expr>.+)}', lineSub, line)
+    # Evaluate <@:> substitutions.
+    def loopSub(match: Match[str]) -> str:
+      expression = match['expr']
+      index = self._scope.get('__INDEX__')
+      if index is None:
+        message = '<@:> substitution outside of the <do> loop body'
+        raise TielEvalError(message, filePath, lineNumber)
+      return str(index * expression)
+    line = re.sub(r'@(?P<expr>:(\s*,)?)', loopSub, line)
+    callback(line)
 
   def _evalLineBlock(self,
                      node: TielTreeNodeLineBlock,
@@ -456,22 +467,6 @@ class TielEvaluator:
     callback(f'# {node.lineNumber} "{node.filePath}"')
     for lineNumber, line in enumerate(node.lines, start=node.lineNumber):
       self._evalLine(line, node.filePath, lineNumber, callback)
-
-  def _evalLine(self,
-                line: str,
-                filePath: str, lineNumber: int,
-                callback: Callable[[str], None]) -> None:
-    '''Evaluate in-line substitutions.'''
-    line = re.sub(r'{(?P<expr>.+)}',
-                  lambda match:
-                    str(self._evalExpr(match['expr'],
-                                       filePath, lineNumber)),
-                  line)
-    line = re.sub(r'@(?P<expr>:(\s*,)?)',
-                  lambda match:
-                    str(self._scope['__INDEX__'] * match['expr']),
-                  line)
-    callback(line)
 
   def _evalIfElseEnd(self,
                      node: TielTreeNodeIfElseEnd,
