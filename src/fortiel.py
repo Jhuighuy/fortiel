@@ -164,7 +164,7 @@ def _regExpr(pattern: str) -> Pattern[str]:
   return re.compile(pattern, re.IGNORECASE)
 
 
-_DIR = _regExpr(r'^\s*#\s*fpp\s+(?P<dir>.*)$')
+_DIR = _regExpr(r'^\s*#fpp\s+(?P<dir>.*)$')
 _DIR_HEAD = _regExpr(r'^(?P<head>\w+)(\s+(?P<head2>\w+))?')
 
 _IF = _regExpr(r'^if\s*(?P<cond>.+)$')
@@ -175,12 +175,13 @@ _END_IF = _regExpr(r'^end\s*if$')
 _DO = _regExpr(r'^do\s+(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$')
 _END_DO = _regExpr(r'^end\s*do$')
 
-_LET = _regExpr(r'^let\s+(?P<name>[a-zA-Z]\w*)\s*' \
-                + r'(?P<args>\((?:[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)?\s*\))?\s*'
-                + r'=\s*(?P<expr>.*)$')
+_LET = _regExpr(r'^let\s+(?P<name>[a-zA-Z]\w*)\s*' +
+                r'(?P<args>\((?:[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)?\s*\))?\s*' +
+                r'=\s*(?P<expr>.*)$')
 _UNDEF = _regExpr(r'^undef\s+(?P<names>[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)$')
 
-_USE = _regExpr(r'^(?P<dir>use|include)\s+(?P<path>(\".+\")|(\'.+\')|(\<.+\>))$')
+_USE = _regExpr(r'^(?P<dir>use|include)\s+' +
+                r'(?P<path>(?:\".+\")|(?:\'.+\')|(?:\<.+\>))$')
 
 _LINE = _regExpr(r'(line)?\s*(?P<num>\d+)\s+(?P<path>(\'.+\')|(\".+\"))')
 
@@ -191,18 +192,28 @@ class TielParser:
                filePath: str, lines: List[str]) -> None:
     self._filePath: str = filePath
     self._lines: List[str] = lines
+    self._curLine: str = self._lines[0]
     self._curLineIndex: int = 0
     self._curLineNumber: int = 1
 
-  def _curLine(self) -> str:
-    return self._lines[self._curLineIndex]
-
-  def _advanceLine(self) -> None:
-    self._curLineIndex += 1
-    self._curLineNumber += 1
-
   def _matchesEnd(self) -> bool:
     return self._curLineIndex >= len(self._lines)
+
+  def _advanceLine(self) -> None:
+    '''Advance to the new line and parse <&>'''
+    self._curLineIndex += 1
+    self._curLineNumber += 1
+    self._curLine: str = '' if self._matchesEnd() \
+      else self._lines[self._curLineIndex].rstrip()
+
+  def _matchesLine(self, *regExpList: Pattern[str]) -> Optional[Match[str]]:
+    if self._matchesEnd():
+      raise TielEndError(self._filePath, self._curLineNumber)
+    for regExp in regExpList:
+      match = regExp.match(self._curLine)
+      if match is not None:
+        return match
+    return None
 
   def _matchLine(self, regExp: Pattern[str]) -> Match[str]:
     match = self._matchesLine(regExp)
@@ -210,15 +221,6 @@ class TielParser:
       raise RuntimeError('expected match')
     self._advanceLine()
     return match
-
-  def _matchesLine(self, *regExpList: Pattern[str]) -> Optional[Match[str]]:
-    if self._matchesEnd():
-      raise TielEndError(self._filePath, self._curLineNumber)
-    for regExp in regExpList:
-      match = regExp.match(self._curLine())
-      if match is not None:
-        return match
-    return None
 
   @staticmethod
   def _getHead(directive: str) -> str:
@@ -234,6 +236,31 @@ class TielParser:
         dirHead += dirHead2
     return dirHead
 
+  def _matchesLineCont(self) -> bool:
+    return self._curLine.endswith('&')
+
+  def _parseLineCont(self) -> None:
+    while self._matchesLineCont():
+      self._curLine = self._curLine[:-1].rstrip()
+      self._curLineIndex += 1
+      self._curLineNumber += 1
+      if self._matchesEnd():
+        raise TielEndError(self._filePath, self._curLineNumber)
+      nextLine = self._lines[self._curLineIndex].strip()
+      if nextLine.startswith('&'):
+        nextLine = nextLine[1:].lstrip()
+      self._curLine += ' ' + nextLine
+
+  def _matchesDirHead(self, *dirHeadList: str) -> Optional[str]:
+    self._parseLineCont()
+    dirMatch = self._matchesLine(_DIR)
+    if dirMatch is not None:
+      directive = dirMatch['dir'].lower()
+      dirHead = self.__class__._getHead(directive)
+      if dirHead in dirHeadList:
+        return dirHead
+    return None
+
   def _matchDirective(self, regExp: Pattern[str]) -> Match[str]:
     directive = self._matchLine(_DIR).group('dir').rstrip()
     match = regExp.match(directive)
@@ -242,15 +269,6 @@ class TielParser:
       message = f'invalid <{dirHead}> directive syntax'
       raise TielDirError(message, self._filePath, self._curLineNumber)
     return match
-
-  def _matchesDirHead(self, *dirHeadList: str) -> Optional[str]:
-    dirMatch = self._matchesLine(_DIR)
-    if dirMatch is not None:
-      directive = dirMatch['dir'].lower()
-      dirHead = self.__class__._getHead(directive)
-      if dirHead in dirHeadList:
-        return dirHead
-    return None
 
   def parse(self) -> TielTree:
     '''Parse the source lines.'''
@@ -270,7 +288,7 @@ class TielParser:
     node = TielTreeNodeLineBlock(self._filePath,
                                  self._curLineNumber)
     while True:
-      node.lines.append(self._curLine())
+      node.lines.append(self._curLine)
       self._advanceLine()
       if self._matchesEnd() or self._matchesLine(_DIR):
         break
@@ -278,6 +296,7 @@ class TielParser:
 
   def _parseDirective(self) -> TielTreeNode:
     '''Parse a directive.'''
+    self._parseLineCont()
     directive = self._matchesLine(_DIR)['dir']
     dirHead = self.__class__._getHead(directive)
     if dirHead == 'if':
@@ -472,15 +491,13 @@ class TielEvaluator:
                      node: TielTreeNodeIfElseEnd,
                      callback: Callable[[str], None]) -> None:
     '''Evaluate IF/ELSE IF/ELSE/END IF node.'''
-    condition = self._evalExpr(node.condition,
-                               node.filePath, node.lineNumber)
-    if condition:
+    if self._evalExpr(node.condition,
+                      node.filePath, node.lineNumber):
       self._evalNodeList(node.thenBranch, callback)
     else:
       for elseIfNode in node.elseIfBranches:
-        condition = self._evalExpr(elseIfNode.condition,
-                                   elseIfNode.filePath, elseIfNode.lineNumber)
-        if condition:
+        if self._evalExpr(elseIfNode.condition,
+                          elseIfNode.filePath, elseIfNode.lineNumber):
           self._evalNodeList(elseIfNode.branch, callback)
           break
       else:
