@@ -31,7 +31,7 @@ Python 3 builtins.
 
 Functions can be also declared using the `let` directive.
 
-__Syntax__
+__Syntax__:
 ```fortran
 #fpp let <var>([<argument>[, <anotherArgument>]*]) = <expression>
 ```
