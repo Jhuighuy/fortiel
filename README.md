@@ -1,6 +1,12 @@
-# fortiel — Fortran preprocessing and metaprogramming language
+# fortiel — Fortran preprocessor and metaprogramming engine
 
-Fortiel is Fortran powered preprocessor. 
+Fortiel is a Fortran preprocessor. 
+
+# Installation
+Fortiel can be install as the [PyPI package](https://pypi.org/project/fortiel/):
+```bash
+pip3 install fortiel
+```
 
 # Preprocessor language
 
@@ -14,11 +20,18 @@ Both `fpp` and `<directive>` are case-insensitive.
 
 ### `let` directive
 `let` directive declares a new named variable.
-Syntax:
+
+__Syntax__:
 ```fortran
 #fpp let <var> = <expression>
 ```
-Functions can be also declared using the `let` directive:
+`<expression>` should be a valid Python 3 expression, 
+that may refer to the previously defined variables, Fortiel builtins and
+Python 3 builtins.
+
+Functions can be also declared using the `let` directive.
+
+__Syntax__
 ```fortran
 #fpp let <var>([<argument>[, <anotherArgument>]*]) = <expression>
 ```
@@ -26,7 +39,8 @@ Functions can be also declared using the `let` directive:
 ### `undef` directive
 `undef` directive undefines the names, previously defined
 with the `let` directive. 
-Syntax:
+
+__Syntax__:
 ```fortran
 #fpp undef <var>[, <anotherVar>]*
 ```
@@ -34,7 +48,8 @@ Builtin names like `__FILE__` or `__LINE__` can not be undefined.
 
 ### `if`/`else if`/`else`/`end if` directive
 `if` is a classic conditional directive.
-Syntax:
+
+__Syntax__:
 ```fortran
 #fpp if <condition>
   ! Fortran code.
@@ -49,9 +64,10 @@ Note that `else if` and `elseif` directives,
 
 ### `do`/`end do` directive
 `do` directives substitutes the code multiple times.
-Syntax:
+
+__Syntax__:
 ```fortran 
-#fpp do <name> = <first>, <last>[, <step>]
+#fpp do <var> = <first>, <last>[, <step>]
   ! Fortran code.
 #fpp end do
 ```
@@ -63,8 +79,37 @@ which is equal to the the current iterator value.
 Note that `end do` and `enddo` directives are equivalent.
 
 ### `include` and `use` directives
+`include` directive directly includes the
+contents of the file located at `<filePath>` into the current source.
+
+__Syntax__:
+```fortran
+#fpp include '<filePath>'
+! or
+#fpp include "<filePath>"
+! or
+#fpp include <<filePath>>
+```
+
+`use` directive is the same as `include`, but it skips the
+non-directive lines. 
+
+__Syntax__:
+```fortran
+#fpp use <filePath>
+! or
+#fpp use <filePath>
+! or
+#fpp use <<filePath>>
+```
 
 ### `line` directive
+`line` directive changes current line number and file path.
+
+__Syntax__:
+```fortran
+#fpp [line] <lineNumber> "<filePath>"
+```
 
 ## In-line substitutions
 
