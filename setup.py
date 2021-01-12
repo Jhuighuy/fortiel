@@ -1,16 +1,22 @@
 # -*- coding: utf-8 -*-
 
+import os
 from os import path
 from setuptools import setup
 
 here = path.abspath(path.dirname(__file__))
+readme_file = os.path.join(here, 'README.md')
+with open(readme_file) as fp:
+  long_description = fp.read()
 
 setup(
   name='fortiel',
 
   description='Fortiel Compiler / Fortran Preprocessor',
+  long_description=long_description,
+  long_description_content_type='text/markdown',
 
-  version='0.0.2',
+  version='0.0.4',
 
   url='https://github.com/Jhuighuy/fortiel',
 
@@ -22,9 +28,10 @@ setup(
   classifiers=[
     'Development Status :: 3 - Alpha',
     'Intended Audience :: Developers',
+    'Intended Audience :: Science/Research',
     'Topic :: Software Development :: Build Tools',
     'License :: OSI Approved :: MIT License',
-    'Programming Language :: Python :: 3.5',
+    'Programming Language :: Python :: 3 :: Only',
     'Programming Language :: Python :: 3.6',
     'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.8',

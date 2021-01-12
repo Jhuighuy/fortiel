@@ -15,7 +15,7 @@ Common directive syntax is:
 ```fortran
 #fpp <directive> <directiveArguments>
 ```
-where _\<directive\>_ is one of the known preprocessor directives.
+where `<directive>`_ is one of the known preprocessor directives.
 Both `fpp` and `<directive>` are case-insensitive.
 
 ### `let` directive
