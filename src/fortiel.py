@@ -26,6 +26,7 @@
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
 import sys
+from os import path
 import re
 import json
 from json import JSONEncoder
@@ -34,6 +35,15 @@ from typing import \
   Callable, Optional, Pattern, Match
 
 sys.dont_write_bytecode = True
+
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+
+
+class TielOptions:
+  '''Preprocessor options.'''
+  def __init__(self) -> None:
+    self.includePaths: List[str] = []
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -59,7 +69,11 @@ class TielDirError(TielError):
 
 
 class TielEvalError(TielError):
-  '''Error in the expression.'''
+  '''Error in the directive or line substitution evaluation.'''
+
+
+class TielFileError(TielEvalError):
+  '''Error in the include file path.'''
 
 
 class TielTypeError(TielError):
@@ -80,7 +94,7 @@ class TielTree:
   '''Preprocessor syntax tree.'''
   def __init__(self, filePath: str) -> None:
     self.filePath: str = filePath
-    self.rootNodes: List[TielNode] = []
+    self.rootNodeList: List[TielNode] = []
 
   def __str__(self) -> str:
     class Encoder(JSONEncoder):
@@ -98,19 +112,19 @@ class TielNode:
     self.lineNumber: int = lineNumber
 
 
-class TielNodeLineBlock(TielNode):
-  '''The block of regular lines syntax tree node.'''
+class TielNodeLineList(TielNode):
+  '''The list of regular lines syntax tree node.'''
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
-    self.lines: List[str] = []
+    self.lineList: List[str] = []
 
 
 class TielNodeUse(TielNode):
   '''The USE/INCLUDE directive syntax tree node.'''
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
-    self.pathToInclude: str = ''
-    self.emitLineBlocks: bool = False
+    self.headerFilePath: str = ''
+    self.doPrintLines: bool = False
 
 
 class TielNodeLet(TielNode):
@@ -134,9 +148,9 @@ class TielNodeIfEnd(TielNode):
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.condition: str = ''
-    self.thenBranch: List[TielNode] = []
-    self.elseIfBranches: List[TielNodeElseIf] = []
-    self.elseBranch: List[TielNode] = []
+    self.thenNodeList: List[TielNode] = []
+    self.elseIfNodeList: List[TielNodeElseIf] = []
+    self.elseNodeList: List[TielNode] = []
 
 
 class TielNodeElseIf(TielNode):
@@ -144,7 +158,7 @@ class TielNodeElseIf(TielNode):
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.condition: str = ''
-    self.branch: List[TielNode] = []
+    self.nodeList: List[TielNode] = []
 
 
 class TielNodeDoEnd(TielNode):
@@ -153,7 +167,7 @@ class TielNodeDoEnd(TielNode):
     super().__init__(filePath, lineNumber)
     self.indexName: str = ''
     self.bounds: str = ''
-    self.loopBody: List[TielNode] = []
+    self.nodeList: List[TielNode] = []
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -255,7 +269,7 @@ class TielParser:
     dirMatch = self._matchesLine(_DIR)
     if dirMatch is not None:
       directive = dirMatch['dir'].lower()
-      dirHead = self.__class__._getHead(directive)
+      dirHead = type(self)._getHead(directive)
       if dirHead in dirHeadList:
         return dirHead
     return None
@@ -264,7 +278,7 @@ class TielParser:
     directive = self._matchLine(_DIR).group('dir').rstrip()
     match = regExp.match(directive)
     if match is None:
-      dirHead = self.__class__._getHead(directive)
+      dirHead = type(self)._getHead(directive)
       message = f'invalid <{dirHead}> directive syntax'
       raise TielDirError(message, self._filePath, self._curLineNumber)
     return match
@@ -273,21 +287,21 @@ class TielParser:
     '''Parse the source lines.'''
     tree = TielTree(self._filePath)
     while not self._matchesEnd():
-      tree.rootNodes.append(self._parseSingle())
+      tree.rootNodeList.append(self._parseSingle())
     return tree
 
   def _parseSingle(self) -> TielNode:
     '''Parse a directive or a line block.'''
     if self._matchesLine(_DIR):
       return self._parseDirective()
-    return self._parseLineBlock()
+    return self._parseLineList()
 
-  def _parseLineBlock(self) -> TielNodeLineBlock:
-    '''Parse a line block.'''
-    node = TielNodeLineBlock(self._filePath,
-                             self._curLineNumber)
+  def _parseLineList(self) -> TielNodeLineList:
+    '''Parse a line list.'''
+    node = TielNodeLineList(self._filePath,
+                            self._curLineNumber)
     while True:
-      node.lines.append(self._curLine)
+      node.lineList.append(self._curLine)
       self._advanceLine()
       if self._matchesEnd() or self._matchesLine(_DIR):
         break
@@ -297,7 +311,7 @@ class TielParser:
     '''Parse a directive.'''
     self._parseLineCont()
     directive = self._matchesLine(_DIR)['dir']
-    dirHead = self.__class__._getHead(directive)
+    dirHead = type(self)._getHead(directive)
     if dirHead == 'use' \
         or dirHead == 'include':
       return self._parseDirectiveUse()
@@ -326,11 +340,11 @@ class TielParser:
     '''Parse USE/INCLUDE directives.'''
     node = TielNodeUse(self._filePath,
                        self._curLineNumber)
-    directive, node.pathToInclude \
+    directive, node.headerFilePath \
       = self._matchDirective(_USE).group('dir', 'path')
-    node.pathToInclude = node.pathToInclude[1:-1]
+    node.headerFilePath = node.headerFilePath[1:-1]
     if directive.lower() == 'include':
-      node.emitLineBlocks = True
+      node.doPrintLines = True
     return node
 
   def _parseDirectiveLet(self) -> TielNodeLet:
@@ -363,19 +377,19 @@ class TielParser:
                          self._curLineNumber)
     node.condition = self._matchDirective(_IF)['cond']
     while not self._matchesDirHead('elseif', 'else', 'endif'):
-      node.thenBranch.append(self._parseSingle())
+      node.thenNodeList.append(self._parseSingle())
     if self._matchesDirHead('elseif'):
       while not self._matchesDirHead('else', 'endif'):
         elseIfNode = TielNodeElseIf(self._filePath,
                                     self._curLineNumber)
         elseIfNode.condition = self._matchDirective(_ELSE_IF)['cond']
         while not self._matchesDirHead('elseif', 'else', 'endif'):
-          elseIfNode.branch.append(self._parseSingle())
-        node.elseIfBranches.append(elseIfNode)
+          elseIfNode.nodeList.append(self._parseSingle())
+        node.elseIfNodeList.append(elseIfNode)
     if self._matchesDirHead('else'):
       self._matchDirective(_ELSE)
       while not self._matchesDirHead('endif'):
-        node.elseBranch.append(self._parseSingle())
+        node.elseNodeList.append(self._parseSingle())
     self._matchDirective(_END_IF)
     return node
 
@@ -388,7 +402,7 @@ class TielParser:
     node.indexName, node.bounds \
       = self._matchDirective(_DO).group('index', 'bounds')
     while not self._matchesDirHead('enddo'):
-      node.loopBody.append(self._parseSingle())
+      node.nodeList.append(self._parseSingle())
     self._matchDirective(_END_DO)
     return node
 
@@ -404,21 +418,25 @@ class TielParser:
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
 
-_BUILTIN_NAMES = ['__FILE__', '__LINE__', '__INDEX__']
+_BUILTIN_NAMES = [
+  '__FILE__', '__LINE__',
+  '__DATE__', '__TIME__',
+  '__INDEX__',
+]
 
 
 class TielEvaluator:
   '''Abstract syntax tree evaluator.'''
-  def __init__(self, scope=None):
-    if scope is None:
-      scope = {}
-    self._scope: Dict[str, Any] = scope
+  def __init__(self, options: TielOptions):
+    self._scope: Dict[str, Any] = {}
+    self._options: TielOptions = options
 
   def eval(self,
            tree: TielTree,
            printFunc: Callable[[str], None]) -> None:
     '''Evaluate the syntax tree or the syntax tree node.'''
-    self._evalNodeList(tree.rootNodes, printFunc)
+    printFunc(f'# 1 "{tree.filePath}"')
+    self._evalNodeList(tree.rootNodeList, printFunc)
 
   def _evalExpr(self,
                 expression: str,
@@ -426,34 +444,28 @@ class TielEvaluator:
     '''Evaluate macro expression.'''
     try:
       result = eval(expression, self._scope)
-    except NameError as error:
-      name = 'todo'
-      message = f'name `{name}` is not defined'
-      raise TielEvalError(message, filePath, lineNumber) from error
     except Exception as error:
       message = f'expression evaluation exception `{str(error)}`'
       raise TielEvalError(message, filePath, lineNumber) from error
     return result
 
   def _evalNodeList(self,
-                    nodes: Union[TielNode, List[TielNode]],
+                    nodes: List[TielNode],
                     printFunc: Callable[[str], None]) -> None:
     '''Evaluate the syntax tree node or a list of nodes.'''
-    if not isinstance(nodes, list):
-      nodes = [nodes]
     for node in nodes:
-      if isinstance(node, TielNodeLineBlock):
-        self._evalLineBlock(node, printFunc)
-      elif isinstance(node, TielNodeIfEnd):
-        self._evalIfElseEnd(node, printFunc)
-      elif isinstance(node, TielNodeDoEnd):
-        self._evalDoEnd(node, printFunc)
+      if isinstance(node, TielNodeLineList):
+        self._evalLineList(node, printFunc)
+      elif isinstance(node, TielNodeUse):
+        self._evalUse(node, printFunc)
       elif isinstance(node, TielNodeLet):
         self._evalLet(node)
       elif isinstance(node, TielNodeUndef):
         self._evalUndef(node)
-      elif isinstance(node, TielNodeUse):
-        self._evalUse(node)
+      elif isinstance(node, TielNodeIfEnd):
+        self._evalIfElseEnd(node, printFunc)
+      elif isinstance(node, TielNodeDoEnd):
+        self._evalDoEnd(node, printFunc)
       else:
         nodeType = node.__class__.__name__
         raise RuntimeError(f'no evaluator for node type {nodeType}')
@@ -479,13 +491,81 @@ class TielEvaluator:
     line = re.sub(r'@(?P<expr>:(\s*,)?)', loopSub, line)
     printFunc(line)
 
-  def _evalLineBlock(self,
-                     node: TielNodeLineBlock,
-                     printFunc: Callable[[str], None]) -> None:
+  def _evalLineList(self,
+                    node: TielNodeLineList,
+                    printFunc: Callable[[str], None]) -> None:
     '''Evaluate line block.'''
-    printFunc(f'# {node.lineNumber} "{node.filePath}"')
-    for lineNumber, line in enumerate(node.lines, start=node.lineNumber):
+    for lineNumber, line in enumerate(node.lineList, start=node.lineNumber):
       self._evalLine(line, node.filePath, lineNumber, printFunc)
+
+  @staticmethod
+  def _findFile(filePath: str, dirPathList: List[str]) -> Optional[str]:
+    if path.exists(filePath):
+      return filePath
+    for dirPath in dirPathList:
+      filePathInDir = path.join(dirPath, filePath)
+      if path.exists(filePathInDir):
+        return filePathInDir
+    return None
+
+  def _evalUse(self,
+               node: TielNodeUse,
+               printFunc: Callable[[str], None]) -> None:
+    '''Evaluate USE/INCLUDE directive.'''
+    curDirPath, _ = path.split(node.filePath)
+    headerFilePath \
+      = type(self)._findFile(node.headerFilePath,
+                             self._options.includePaths + [curDirPath])
+    if headerFilePath is None:
+      message = f'`{node.headerFilePath}`: no such file or directory'
+      raise TielFileError(message, node.filePath, node.lineNumber)
+    if path.isdir(headerFilePath):
+      message = f'`{node.headerFilePath}`: is a directory, file expected'
+      raise TielFileError(message, node.filePath, node.lineNumber)
+    with open(headerFilePath, mode='r') as fp:
+      headerLines = fp.read().splitlines()
+    headerTree = TielParser(node.headerFilePath, headerLines).parse()
+    if node.doPrintLines:
+      self.eval(headerTree, printFunc)
+    else:
+      dummyPrintFunc = lambda _: None
+      self.eval(headerTree, dummyPrintFunc)
+
+  def _evalLet(self,
+               node: TielNodeLet) -> None:
+    '''Evaluate LET directive.'''
+    if node.name in self._scope:
+      message = f'name `{node.name}` is already defined.'
+      raise TielEvalError(message, node.filePath, node.lineNumber)
+    if node.name in _BUILTIN_NAMES:
+        message = f'builtin name <{node.name}> can not be redefined'
+        raise TielEvalError(message, node.filePath, node.lineNumber)
+    if node.arguments is None:
+      value = self._evalExpr(node.expression,
+                             node.filePath, node.lineNumber)
+      self._scope[node.name] = value
+    else:
+      argNameList = [arg.strip() for arg in node.arguments.split(',')]
+      if len(argNameList) > len(set(argNameList)):
+        message = 'functional <let> arguments must be unique'
+        raise TielEvalError(message, node.filePath, node.lineNumber)
+      # Evaluate functional LET as lambda function.
+      expression = f'lambda {node.arguments}: {node.expression}'
+      func = self._evalExpr(expression,
+                            node.filePath, node.lineNumber)
+      self._scope[node.name] = func
+
+  def _evalUndef(self,
+                 node: TielNodeUndef) -> None:
+    '''Evaluate UNDEF directive.'''
+    for name in node.nameList:
+      if not name in self._scope:
+        message = f'name `{name}` was not previously defined'
+        raise TielEvalError(message, node.filePath, node.lineNumber)
+      if name in _BUILTIN_NAMES:
+        message = f'builtin name <{name}> can not be undefined'
+        raise TielEvalError(message, node.filePath, node.lineNumber)
+      del self._scope[name]
 
   def _evalIfElseEnd(self,
                      node: TielNodeIfEnd,
@@ -493,15 +573,15 @@ class TielEvaluator:
     '''Evaluate IF/ELSE IF/ELSE/END IF node.'''
     if self._evalExpr(node.condition,
                       node.filePath, node.lineNumber):
-      self._evalNodeList(node.thenBranch, printFunc)
+      self._evalNodeList(node.thenNodeList, printFunc)
     else:
-      for elseIfNode in node.elseIfBranches:
+      for elseIfNode in node.elseIfNodeList:
         if self._evalExpr(elseIfNode.condition,
                           elseIfNode.filePath, elseIfNode.lineNumber):
-          self._evalNodeList(elseIfNode.branch, printFunc)
+          self._evalNodeList(elseIfNode.nodeList, printFunc)
           break
       else:
-        self._evalNodeList(node.elseBranch, printFunc)
+        self._evalNodeList(node.elseNodeList, printFunc)
 
   def _evalDoEnd(self,
                  node: TielNodeDoEnd,
@@ -523,52 +603,12 @@ class TielEvaluator:
     for index in range(start, stop + 1, step):
       self._scope[node.indexName] = index
       self._scope['__INDEX__'] = index
-      self._evalNodeList(node.loopBody, printFunc)
+      self._evalNodeList(node.nodeList, printFunc)
     del self._scope[node.indexName]
     if prevIndex is not None:
       self._scope['__INDEX__'] = prevIndex
     else:
       del self._scope['__INDEX__']
-
-  def _evalLet(self,
-               node: TielNodeLet) -> None:
-    '''Evaluate LET directive.'''
-    if node.name in self._scope:
-      message = f'name `{node.name}` is already defined'
-      raise TielEvalError(message, node.filePath, node.lineNumber)
-    if node.name in _BUILTIN_NAMES:
-        message = f'builtin name <{node.name}> can not be redefined'
-        raise TielEvalError(message, node.filePath, node.lineNumber)
-    if node.arguments is None:
-      value = self._evalExpr(node.expression,
-                             node.filePath, node.lineNumber)
-      self._scope[node.name] = value
-    else:
-      argNameList = [arg.strip() for arg in node.arguments.split(',')]
-      if len(argNameList) > len(set(argNameList)):
-        message = 'functional <let> arguments must be unique'
-        raise TielEvalError(message, node.filePath, node.lineNumber)
-      # Evaluate functional LET as lambda function.
-      func = self._evalExpr(f'lambda {node.arguments}: {node.expression}',
-                            node.filePath, node.lineNumber)
-      self._scope[node.name] = func
-
-  def _evalUndef(self,
-                 node: TielNodeUndef) -> None:
-    '''Evaluate UNDEF directive.'''
-    for name in node.nameList:
-      if not name in self._scope:
-        message = f'name `{name}` was not previously defined'
-        raise TielEvalError(message, node.filePath, node.lineNumber)
-      if name in _BUILTIN_NAMES:
-        message = f'builtin name <{name}> can not be undefined'
-        raise TielEvalError(message, node.filePath, node.lineNumber)
-      del self._scope[name]
-
-  def _evalUse(self,
-               node: TielNodeUse) -> None:
-    '''Evaluate USE/INCLUDE directive.'''
-    print(node.__class__.__name__)
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -576,14 +616,15 @@ class TielEvaluator:
 
 
 def tielPreprocess(filePath: str,
-                   outputFilePath: str) -> None:
+                   outputFilePath: str,
+                   options: TielOptions=TielOptions()) -> None:
   '''Preprocess the source file.'''
   with open(filePath, 'r') as fp:
     lines = fp.read().splitlines()
   tree = TielParser(filePath, lines).parse()
   with open(outputFilePath, 'w') as fp:
-    TielEvaluator().eval(tree,
-                         lambda x: print(x, file=fp))
+    printFunc = lambda line: print(line, file=fp)
+    TielEvaluator(options).eval(tree, printFunc)
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
