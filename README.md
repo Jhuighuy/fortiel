@@ -1,142 +1,196 @@
 # fortiel — Fortran preprocessor and metaprogramming engine
 
-Fortiel is a Fortran preprocessor. 
+Fortiel (_mixed [Fortran](https://fortran-lang.org/) 
+and [Cockatiel](https://en.wikipedia.org/wiki/Cockatiel)_) 
+is a Fortran preprocessor. 
+
 
 # Installation
-Fortiel can be install as the [PyPI package](https://pypi.org/project/fortiel/):
+Fortiel can be install as the 
+[PyPI package](https://pypi.org/project/fortiel/):
 ```bash
 pip3 install fortiel
 ```
 
+
 # Preprocessor language
+
 
 ## Directives
 Common directive syntax is:
 ```fortran
-#fpp <directive> <directiveArguments>
+#fpp directiveName directiveArguments
 ```
-where `<directive>`_ is one of the known preprocessor directives.
-Both `fpp` and `<directive>` are case-insensitive.
+where `directiveName` is one of the known preprocessor directives.
+The `#fpp` directive header is treated as a single token, so no
+whitespaces are allowed between `#` and `fpp`.
+
+Both `fpp` and `directiveName` are _case-insensitive_
+(Python expressions and file paths although are _case-sensitive_), 
+so the following lines are equivalent:
+```fortran
+#fpp use 'filename'
+! and
+#FpP uSe 'filename'
+```
+
+
+### Continuation Lines
+Fortran-style continuation lines `&` are supported within 
+the preprocessor directives:
+```fortran
+#fpp directivePart &
+        anotherDirectivePart
+! and
+#fpp directivePart &
+        & anotherDirectivePart
+```
+
+
+### `include` directive
+directly the contents of the file 
+located at `filePath` into the current source:
+```fortran
+#fpp include 'filePath'
+! or
+#fpp include "filePath"
+! or
+#fpp include <filePath>
+```
+
+
+### `use` directive
+is the same as `include`, but it skips the
+non-directive lines:
+```fortran
+#fpp use 'filePath'
+! or
+#fpp use "filePath"
+! or
+#fpp use <filePath>
+```
+
 
 ### `let` directive
-`let` directive declares a new named variable.
-
-__Syntax__:
+declares a new named variable:
 ```fortran
-#fpp let <var> = <expression>
+#fpp let var = expression
 ```
-`<expression>` should be a valid Python 3 expression, 
-that may refer to the previously defined variables, Fortiel builtins and
-Python 3 builtins.
+`expression` should be a valid Python 3 expression, 
+that may refer to the previously defined variables, 
+Fortiel builtins and Python 3 builtins.
 
-Functions can be also declared using the `let` directive.
-
-__Syntax__:
+Functions can be also declared using the `let` directive:
 ```fortran
-#fpp let <var>([<argument>[, <anotherArgument>]*]) = <expression>
+#fpp let fun([argument[, anotherArgument]*]) = expression
 ```
+
 
 ### `undef` directive
-`undef` directive undefines the names, previously defined
-with the `let` directive. 
-
-__Syntax__:
+undefines the names, previously defined with 
+the `let` directive:
 ```fortran
-#fpp undef <var>[, <anotherVar>]*
+#fpp undef var[, anotherVar]*
 ```
-Builtin names like `__FILE__` or `__LINE__` can not be undefined.
+Builtin names like `__FILE__` or `__LINE__` cannot be undefined.
+
 
 ### `if`/`else if`/`else`/`end if` directive
-`if` is a classic conditional directive.
-
-__Syntax__:
+is a classic conditional directive:
 ```fortran
-#fpp if <condition>
+#fpp if condition
   ! Fortran code.
-#fpp else if <condition>
+#fpp else if condition
   ! Fortran code.
 #fpp else
   ! Fortran code.
 #fpp end if
 ```
-Note that `else if` and `elseif` directives, 
-`end if` and `endif` directives are equivalent.
+Note that `else if`, `elseif` and `elif` directives, 
+`end if` and `endif` directives are respectively equivalent.
+
 
 ### `do`/`end do` directive
-`do` directives substitutes the code multiple times.
-
-__Syntax__:
+substitutes the source lines multiple times:
 ```fortran 
-#fpp do <var> = <first>, <last>[, <step>]
+#fpp do var = first, last[, step]
   ! Fortran code.
 #fpp end do
 ```
-`<first>`, `<last>` and optional `<step>` expressions should 
+`first`, `last` and optional `step` expressions should 
 evaluate to integers.
-Inside the loop body a special variable `__INDEX__` is defined,
-which is equal to the the current iterator value.
+Inside the loop body a special integer variable `__INDEX__` is 
+defined, which is equal to the the current value of `var`.
 
 Note that `end do` and `enddo` directives are equivalent.
 
-### `include` and `use` directives
-`include` directive directly includes the
-contents of the file located at `<filePath>` into the current source.
-
-__Syntax__:
-```fortran
-#fpp include '<filePath>'
-! or
-#fpp include "<filePath>"
-! or
-#fpp include <<filePath>>
-```
-
-`use` directive is the same as `include`, but it skips the
-non-directive lines. 
-
-__Syntax__:
-```fortran
-#fpp use <filePath>
-! or
-#fpp use <filePath>
-! or
-#fpp use <<filePath>>
-```
 
 ### `line` directive
-`line` directive changes current line number and file path.
-
-__Syntax__:
+changes current line number and file path:
 ```fortran
-#fpp [line] <lineNumber> "<filePath>"
+#fpp [line] lineNumber 'filePath'
+! or
+#fpp [line] lineNumber "filePath"
 ```
+
 
 ## In-line substitutions
 
-### `{}` substitution
 
-### `@:` substitution
+### `` `x` `` substitutions
+Consider the example:
+```fortran
+#fpp let x = 'b'
+a`x`   ! evaluates to ab;
+`3*x`a ! evaluates to bbba.
+```
+
+
+### `@x` substitution
+is a special substitution that becomes handy inside 
+the `#fpp do` loops:
+```fortran
+@var[,]
+! or
+@:[,]
+```
+This substitution spawns the token after `@` (an identifier 
+or colon character), and an optional trailing comma,
+the `__INDEX__` amount of times.
+
+Consider the example:
+```fortran
+#fpp do i = 0, 2
+  @a, b
+#fpp end do
+! evaluates to
+b
+a, b
+a, a, b
+```
+
 
 # Examples
+
 
 ## Generic programming
 ```fortran
 module Distances
-  
+    
   implicit none
-  
+
   #fpp let NUM_RANKS = 2
 
   interface computeSquareDistance
-  #fpp do rank = 0, NUM_RANKS
+#fpp do rank = 0, NUM_RANKS
     module procedure computeSquareDistance{rank}
-  #fpp end do    
+#fpp end do    
   end interface computeSquareDistance
 
 contains
 
 #fpp do rank = 0, NUM_RANKS
-  function computeSquareDistance{rank}(n, u, v) result(d)
+  function computeSquareDistance$rank(n, u, v) result(d)
     integer, intent(in) :: n
     real, intent(in) :: u(@:,:), v(@:,:)
     real :: d
@@ -149,16 +203,17 @@ contains
       d = d + sum((u(@:,i) - v(@:,i))**2)
     #fpp end if
     end do
-  end function computeSquareDistance{rank}
+  end function computeSquareDistance$rank
 #fpp end do    
+
 end module Distances
 ```
 
 ```fortran
 module Distances
-  
+    
   implicit none
-  
+
   interface computeSquareDistance
     module procedure computeSquareDistance0
     module procedure computeSquareDistance1
@@ -197,6 +252,7 @@ contains
       d = d + sum((u(:,:,i) - v(:,:,i))**2)
     end do
   end function computeSquareDistance2
+
 end module Distances
 ```
 

@@ -475,11 +475,11 @@ class TielEvaluator:
                 filePath: str, lineNumber: int,
                 printFunc: Callable[[str], None]) -> None:
     '''Evaluate in-line substitutions.'''
-    # Evaluate <{}> substitutions.
+    # Evaluate <``> substitutions.
     def lineSub(match: Match[str]) -> str:
       expression = match['expr']
       return str(self._evalExpr(expression, filePath, lineNumber))
-    line = re.sub(r'{(?P<expr>.+)}', lineSub, line)
+    line = re.sub(r'`(?P<expr>.+)`', lineSub, line)
     # Evaluate <@:> substitutions.
     def loopSub(match: Match[str]) -> str:
       expression = match['expr']
