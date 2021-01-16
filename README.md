@@ -161,7 +161,7 @@ the `__INDEX__` amount of times.
 Consider the example:
 ```fortran
 #fpp do i = 0, 2
-  @a, b
+@a, b
 #fpp end do
 ! evaluates to
 b
@@ -179,7 +179,7 @@ module Distances
     
   implicit none
 
-  #fpp let NUM_RANKS = 2
+#fpp let NUM_RANKS = 2
 
   interface computeSquareDistance
 #fpp do rank = 0, NUM_RANKS
