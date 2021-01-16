@@ -190,7 +190,7 @@ module Distances
 contains
 
 #fpp do rank = 0, NUM_RANKS
-  function computeSquareDistance$rank(n, u, v) result(d)
+  function computeSquareDistance`rank`(n, u, v) result(d)
     integer, intent(in) :: n
     real, intent(in) :: u(@:,:), v(@:,:)
     real :: d
@@ -203,7 +203,7 @@ contains
       d = d + sum((u(@:,i) - v(@:,i))**2)
     #fpp end if
     end do
-  end function computeSquareDistance$rank
+  end function computeSquareDistance`rank`
 #fpp end do    
 
 end module Distances

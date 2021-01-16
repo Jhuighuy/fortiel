@@ -119,7 +119,11 @@ class TielNodeLineList(TielNode):
     self.lineList: List[str] = []
 
 
-class TielNodeUse(TielNode):
+class TielNodeDir(TielNode):
+  '''Preprocessor directive node.'''
+
+
+class TielNodeUse(TielNodeDir):
   '''The USE/INCLUDE directive syntax tree node.'''
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
@@ -127,7 +131,7 @@ class TielNodeUse(TielNode):
     self.doPrintLines: bool = False
 
 
-class TielNodeLet(TielNode):
+class TielNodeLet(TielNodeDir):
   '''The LET directive syntax tree node.'''
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
@@ -136,37 +140,37 @@ class TielNodeLet(TielNode):
     self.expression: str = ''
 
 
-class TielNodeUndef(TielNode):
+class TielNodeUndef(TielNodeDir):
   '''The UNDEF directive syntax tree node.'''
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.nameList: List[str] = []
 
 
-class TielNodeIfEnd(TielNode):
+class TielNodeIfEnd(TielNodeDir):
   '''The IF/ELSE IF/ELSE/END IF directive syntax tree node.'''
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
-    self.condition: str = ''
+    self.condExpr: str = ''
     self.thenNodeList: List[TielNode] = []
     self.elseIfNodeList: List[TielNodeElseIf] = []
     self.elseNodeList: List[TielNode] = []
 
 
-class TielNodeElseIf(TielNode):
+class TielNodeElseIf(TielNodeDir):
   '''The ELSE IF directive syntax tree node.'''
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
-    self.condition: str = ''
+    self.condExpr: str = ''
     self.nodeList: List[TielNode] = []
 
 
-class TielNodeDoEnd(TielNode):
+class TielNodeDoEnd(TielNodeDir):
   '''The DO/END DO directive syntax tree node.'''
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.indexName: str = ''
-    self.bounds: str = ''
+    self.boundsExpr: str = ''
     self.nodeList: List[TielNode] = []
 
 
@@ -236,20 +240,20 @@ class TielParser:
     self._advanceLine()
     return match
 
-  def _matchesLineCont(self) -> bool:
-    return self._curLine.endswith('&')
-
   def _parseLineCont(self) -> None:
-    while self._matchesLineCont():
-      self._curLine = self._curLine[:-1].rstrip()
+    '''Parse continuation lines.'''
+    while self._curLine.endswith('&'):
+      self._curLine: str = self._curLine[:-1] + ' '
       self._curLineIndex += 1
       self._curLineNumber += 1
       if self._matchesEnd():
         raise TielEndError(self._filePath, self._curLineNumber)
-      nextLine = self._lines[self._curLineIndex].strip()
+      nextLine = self._lines[self._curLineIndex].lstrip()
+      if nextLine.startswith('!'):
+        continue
       if nextLine.startswith('&'):
         nextLine = nextLine[1:].lstrip()
-      self._curLine += ' ' + nextLine
+      self._curLine += nextLine.rstrip()
 
   @staticmethod
   def _getHead(directive: str) -> str:
@@ -375,14 +379,14 @@ class TielParser:
     # evaluating or validating conditions here.
     node = TielNodeIfEnd(self._filePath,
                          self._curLineNumber)
-    node.condition = self._matchDirective(_IF)['cond']
+    node.condExpr = self._matchDirective(_IF)['cond']
     while not self._matchesDirHead('elseif', 'else', 'endif'):
       node.thenNodeList.append(self._parseSingle())
     if self._matchesDirHead('elseif'):
       while not self._matchesDirHead('else', 'endif'):
         elseIfNode = TielNodeElseIf(self._filePath,
                                     self._curLineNumber)
-        elseIfNode.condition = self._matchDirective(_ELSE_IF)['cond']
+        elseIfNode.condExpr = self._matchDirective(_ELSE_IF)['cond']
         while not self._matchesDirHead('elseif', 'else', 'endif'):
           elseIfNode.nodeList.append(self._parseSingle())
         node.elseIfNodeList.append(elseIfNode)
@@ -399,7 +403,7 @@ class TielParser:
     # evaluating or validating loop bounds here.
     node = TielNodeDoEnd(self._filePath,
                          self._curLineNumber)
-    node.indexName, node.bounds \
+    node.indexName, node.boundsExpr \
       = self._matchDirective(_DO).group('index', 'bounds')
     while not self._matchesDirHead('enddo'):
       node.nodeList.append(self._parseSingle())
@@ -435,19 +439,7 @@ class TielEvaluator:
            tree: TielTree,
            printFunc: Callable[[str], None]) -> None:
     '''Evaluate the syntax tree or the syntax tree node.'''
-    printFunc(f'# 1 "{tree.filePath}"')
     self._evalNodeList(tree.rootNodeList, printFunc)
-
-  def _evalExpr(self,
-                expression: str,
-                filePath: str, lineNumber: int):
-    '''Evaluate macro expression.'''
-    try:
-      result = eval(expression, self._scope)
-    except Exception as error:
-      message = f'expression evaluation exception `{str(error)}`'
-      raise TielEvalError(message, filePath, lineNumber) from error
-    return result
 
   def _evalNodeList(self,
                     nodes: List[TielNode],
@@ -456,26 +448,29 @@ class TielEvaluator:
     for node in nodes:
       if isinstance(node, TielNodeLineList):
         self._evalLineList(node, printFunc)
-      elif isinstance(node, TielNodeUse):
-        self._evalUse(node, printFunc)
-      elif isinstance(node, TielNodeLet):
-        self._evalLet(node)
-      elif isinstance(node, TielNodeUndef):
-        self._evalUndef(node)
-      elif isinstance(node, TielNodeIfEnd):
-        self._evalIfElseEnd(node, printFunc)
-      elif isinstance(node, TielNodeDoEnd):
-        self._evalDoEnd(node, printFunc)
+      elif isinstance(node, TielNodeDir):
+        self._evalDirective(node, printFunc)
       else:
         nodeType = node.__class__.__name__
         raise RuntimeError(f'no evaluator for node type {nodeType}')
+
+  def _evalExpr(self,
+                expression: str,
+                filePath: str, lineNumber: int) -> Any:
+    '''Evaluate Python expression.'''
+    try:
+      value = eval(expression, self._scope)
+      return value
+    except Exception as error:
+      message = f'expression evaluation exception `{str(error)}`'
+      raise TielEvalError(message, filePath, lineNumber) from error
 
   def _evalLine(self,
                 line: str,
                 filePath: str, lineNumber: int,
                 printFunc: Callable[[str], None]) -> None:
     '''Evaluate in-line substitutions.'''
-    # Evaluate <``> substitutions.
+    # Evaluate expression substitutions.
     def lineSub(match: Match[str]) -> str:
       expression = match['expr']
       return str(self._evalExpr(expression, filePath, lineNumber))
@@ -495,8 +490,27 @@ class TielEvaluator:
                     node: TielNodeLineList,
                     printFunc: Callable[[str], None]) -> None:
     '''Evaluate line block.'''
-    for lineNumber, line in enumerate(node.lineList, start=node.lineNumber):
+    printFunc(f'# {node.lineNumber} "{node.filePath}"')
+    for lineNumber, line \
+        in enumerate(node.lineList, start=node.lineNumber):
       self._evalLine(line, node.filePath, lineNumber, printFunc)
+
+  def _evalDirective(self,
+                    node: TielNode,
+                    printFunc: Callable[[str], None]):
+    '''Evaluate directive.'''
+    if isinstance(node, TielNodeUse):
+      return self._evalDirectiveUse(node, printFunc)
+    if isinstance(node, TielNodeLet):
+      return self._evalDirectiveLet(node)
+    if isinstance(node, TielNodeUndef):
+      return self._evalUndef(node)
+    if isinstance(node, TielNodeIfEnd):
+      return self._evalDirectiveIfEnd(node, printFunc)
+    if isinstance(node, TielNodeDoEnd):
+      return self._evalDirectiveDoEnd(node, printFunc)
+    nodeType = node.__class__.__name__
+    raise RuntimeError(f'no evaluator for directive type {nodeType}')
 
   @staticmethod
   def _findFile(filePath: str, dirPathList: List[str]) -> Optional[str]:
@@ -508,9 +522,9 @@ class TielEvaluator:
         return filePathInDir
     return None
 
-  def _evalUse(self,
-               node: TielNodeUse,
-               printFunc: Callable[[str], None]) -> None:
+  def _evalDirectiveUse(self,
+                        node: TielNodeUse,
+                        printFunc: Callable[[str], None]) -> None:
     '''Evaluate USE/INCLUDE directive.'''
     curDirPath, _ = path.split(node.filePath)
     headerFilePath \
@@ -531,8 +545,8 @@ class TielEvaluator:
       dummyPrintFunc = lambda _: None
       self.eval(headerTree, dummyPrintFunc)
 
-  def _evalLet(self,
-               node: TielNodeLet) -> None:
+  def _evalDirectiveLet(self,
+                        node: TielNodeLet) -> None:
     '''Evaluate LET directive.'''
     if node.name in self._scope:
       message = f'name `{node.name}` is already defined.'
@@ -567,33 +581,33 @@ class TielEvaluator:
         raise TielEvalError(message, node.filePath, node.lineNumber)
       del self._scope[name]
 
-  def _evalIfElseEnd(self,
-                     node: TielNodeIfEnd,
-                     printFunc: Callable[[str], None]) -> None:
+  def _evalDirectiveIfEnd(self,
+                          node: TielNodeIfEnd,
+                          printFunc: Callable[[str], None]) -> None:
     '''Evaluate IF/ELSE IF/ELSE/END IF node.'''
-    if self._evalExpr(node.condition,
+    if self._evalExpr(node.condExpr,
                       node.filePath, node.lineNumber):
       self._evalNodeList(node.thenNodeList, printFunc)
     else:
       for elseIfNode in node.elseIfNodeList:
-        if self._evalExpr(elseIfNode.condition,
+        if self._evalExpr(elseIfNode.condExpr,
                           elseIfNode.filePath, elseIfNode.lineNumber):
           self._evalNodeList(elseIfNode.nodeList, printFunc)
           break
       else:
         self._evalNodeList(node.elseNodeList, printFunc)
 
-  def _evalDoEnd(self,
-                 node: TielNodeDoEnd,
-                 printFunc: Callable[[str], None]) -> None:
+  def _evalDirectiveDoEnd(self,
+                          node: TielNodeDoEnd,
+                          printFunc: Callable[[str], None]) -> None:
     '''Evaluate DO/END DO node.'''
-    bounds = self._evalExpr(node.bounds,
+    bounds = self._evalExpr(node.boundsExpr,
                             node.filePath, node.lineNumber)
     if not isinstance(bounds, tuple) \
         or not (2 <= len(bounds) <= 3) \
         or list(map(type, bounds)) != len(bounds) * [int]:
       message = 'tuple of two or three integers inside the <do> ' \
-              + f' directive bounds is expected, got `{node.bounds}`'
+              + f' directive bounds is expected, got `{node.boundsExpr}`'
       raise TielEvalError(message, node.filePath, node.lineNumber)
     start, stop = bounds[0:2]
     step = bounds[2] if len(bounds) == 3 else 1
