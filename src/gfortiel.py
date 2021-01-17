@@ -29,37 +29,48 @@ import tempfile
 import sys
 import os
 from typing import List, Tuple
-from fortiel import tielPreprocess
+from fortiel import TielError, tielPreprocess
 
-_FORTRAN_EXT = [".f", ".for", ".f90", ".f03", ".f08"]
+_FORTRAN_EXT = [
+  ".f", ".for",
+  ".f90", ".f03", ".f08"
+]
 
 
 def _gfortielParseArguments() -> Tuple[List[str], List[str]]:
   '''Separate GNU Fortran options and input files.'''
-  arguments: List[str] = []
+  otherArgs: List[str] = []
   filePaths: List[str] = []
   for arg in sys.argv[1:]:
-    isInputFile = \
+    isSourceFilePath = \
       not (arg.startswith("-")
-           or (len(arguments) > 0
-               and arguments[-1] == "-o"))
-    if isInputFile:
+           or (len(otherArgs) > 0 and otherArgs[-1] == "-o"))
+    if isSourceFilePath:
       ext = os.path.splitext(arg)[1]
-      isInputFile = ext.lower() in _FORTRAN_EXT
-    if isInputFile:
+      isSourceFilePath = ext.lower() in _FORTRAN_EXT
+    if isSourceFilePath:
       filePaths.append(arg)
     else:
-      arguments.append(arg)
-  return arguments, filePaths
+      otherArgs.append(arg)
+  return otherArgs, filePaths
 
 
 def _gfortielPreprocess(filePath: str,
                         outputFilePath: str) -> None:
-  tielPreprocess(filePath, outputFilePath)
+  '''Preprocess the source or output errors in GNU Fortran style.'''
+  try:
+    tielPreprocess(filePath, outputFilePath)
+  except TielError as error:
+    lineNumber, message = error.lineNumber, error.message
+    gfortranMessage \
+      = f'{filePath}:{lineNumber}:{1}:\n\n\nFatal Error: {message}'
+    print(gfortranMessage, file=sys.stderr)
+    sys.stderr.flush()
+    sys.exit(1)
 
 
 def gfortielMain() -> None:
-  arguments, filePaths = _gfortielParseArguments()
+  otherArgs, filePaths = _gfortielParseArguments()
   outputFilePaths = []
   for filePath in filePaths:
     outputFilePath \
@@ -67,7 +78,7 @@ def gfortielMain() -> None:
         + os.path.splitext(filePath)[1]
     outputFilePaths.append(outputFilePath)
     _gfortielPreprocess(filePath, outputFilePath)
-  gfortranCommand = f'gfortran {" ".join(arguments)} {" ".join(outputFilePaths)}'
+  gfortranCommand = f'gfortran {" ".join(otherArgs)} {" ".join(outputFilePaths)}'
   gfortranExitCode = os.system(gfortranCommand)
   sys.exit(gfortranExitCode)
 
