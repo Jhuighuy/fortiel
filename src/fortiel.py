@@ -25,16 +25,14 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
+
 import sys
 from os import path
 import re
-import json
-from json import JSONEncoder
-from typing import \
-  Any, List, Dict, Union, \
+import argparse
+from typing import Any, List, Dict, \
   Callable, Optional, Pattern, Match
 
-sys.dont_write_bytecode = True
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
@@ -95,14 +93,6 @@ class TielTree:
   def __init__(self, filePath: str) -> None:
     self.filePath: str = filePath
     self.rootNodeList: List[TielNode] = []
-
-  def __str__(self) -> str:
-    class Encoder(JSONEncoder):
-      def default(self, obj):
-        return obj.__dict__
-
-    string = json.dumps(self, indent=2, cls=Encoder)
-    return string
 
 
 class TielNode:
@@ -435,9 +425,9 @@ class TielEvaluator:
     self._scope: Dict[str, Any] = {}
     self._options: TielOptions = options
 
-  def eval(self,
-           tree: TielTree,
-           printFunc: Callable[[str], None]) -> None:
+  def evalTree(self,
+               tree: TielTree,
+               printFunc: Callable[[str], None]) -> None:
     '''Evaluate the syntax tree or the syntax tree node.'''
     self._evalNodeList(tree.rootNodeList, printFunc)
 
@@ -462,7 +452,8 @@ class TielEvaluator:
       value = eval(expression, self._scope)
       return value
     except Exception as error:
-      message = f'expression evaluation exception `{str(error)}`'
+      message = 'Python expression evaluation error: ' \
+                + f'{str(error).replace("<string>", f"expression `{expression}`")}'
       raise TielEvalError(message, filePath, lineNumber) from error
 
   def _evalLine(self,
@@ -504,7 +495,7 @@ class TielEvaluator:
     if isinstance(node, TielNodeLet):
       return self._evalDirectiveLet(node)
     if isinstance(node, TielNodeUndef):
-      return self._evalUndef(node)
+      return self._evalDirectiveUndef(node)
     if isinstance(node, TielNodeIfEnd):
       return self._evalDirectiveIfEnd(node, printFunc)
     if isinstance(node, TielNodeDoEnd):
@@ -531,19 +522,20 @@ class TielEvaluator:
       = type(self)._findFile(node.headerFilePath,
                              self._options.includePaths + [curDirPath])
     if headerFilePath is None:
-      message = f'`{node.headerFilePath}`: no such file or directory'
+      message = f'`{node.headerFilePath}` was not found in the include paths'
       raise TielFileError(message, node.filePath, node.lineNumber)
-    if path.isdir(headerFilePath):
-      message = f'`{node.headerFilePath}`: is a directory, file expected'
-      raise TielFileError(message, node.filePath, node.lineNumber)
-    with open(headerFilePath, mode='r') as fp:
-      headerLines = fp.read().splitlines()
+    try:
+      with open(headerFilePath, mode='r') as fp:
+        headerLines = fp.read().splitlines()
+    except IsADirectoryError as error:
+      message = f'`{node.headerFilePath}` is a directory, file expected'
+      raise TielFileError(message, node.filePath, node.lineNumber) from error
     headerTree = TielParser(node.headerFilePath, headerLines).parse()
     if node.doPrintLines:
-      self.eval(headerTree, printFunc)
+      self.evalTree(headerTree, printFunc)
     else:
       dummyPrintFunc = lambda _: None
-      self.eval(headerTree, dummyPrintFunc)
+      self.evalTree(headerTree, dummyPrintFunc)
 
   def _evalDirectiveLet(self,
                         node: TielNodeLet) -> None:
@@ -569,8 +561,8 @@ class TielEvaluator:
                             node.filePath, node.lineNumber)
       self._scope[node.name] = func
 
-  def _evalUndef(self,
-                 node: TielNodeUndef) -> None:
+  def _evalDirectiveUndef(self,
+                          node: TielNodeUndef) -> None:
     '''Evaluate UNDEF directive.'''
     for name in node.nameList:
       if not name in self._scope:
@@ -638,7 +630,7 @@ def tielPreprocess(filePath: str,
   tree = TielParser(filePath, lines).parse()
   with open(outputFilePath, 'w') as fp:
     printFunc = lambda line: print(line, file=fp)
-    TielEvaluator(options).eval(tree, printFunc)
+    TielEvaluator(options).evalTree(tree, printFunc)
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -646,8 +638,27 @@ def tielPreprocess(filePath: str,
 
 
 def tielMain() -> None:
-  filePath = sys.argv[1]
-  outputFilePath = sys.argv[2]
+  argParser = \
+    argparse.ArgumentParser(prog='fortiel')
+  argParser.add_argument(
+    '-D', '--define',
+    action='append', dest='defines', metavar='NAME[=VALUE]',
+    help='define a named variable')
+  argParser.add_argument(
+    '-I', '--include',
+    action='append', dest='defines', metavar='INCLUDE_DIR',
+    help='add an include directory path')
+  argParser.add_argument(
+    '-N', '--line_markers',
+    choices=['fpp', 'cpp', 'node'], default='fpp',
+    help='emit line markers in the output')
+  argParser.add_argument('file_path',
+                         help='input file path')
+  argParser.add_argument('output_file_path',
+                         help='output file path')
+  args = argParser.parse_args()
+  filePath = args['file_path']
+  outputFilePath = args['output_file_path']
   tielPreprocess(filePath, outputFilePath)
 
 
