@@ -257,3 +257,8 @@ end module Distances
 ```
 
 # Missing features
+
+- Continuation lines in in-line substitutions.
+- Long lines folding.
+- CLI.
+- GFortiel documentation.
