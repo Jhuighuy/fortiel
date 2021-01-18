@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
+#
+# ,------.               ,--.  ,--.       ,--.
+# |  .---',---. ,--.--.,-'  '-.`--' ,---. |  |
+# |  `--,| .-. ||  .--''-.  .-',--.| .-. :|  |
+# |  |`  ' '-' '|  |     |  |  |  |\   --.|  |
+# `--'    `---' `--'     `--'  `--' `----'`--'
+#
 # Copyright (C) 2021 Oleg Butakov
 #
 # Permission is hereby granted, free of charge, to any person
@@ -26,9 +33,8 @@
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
 
-import sys
-from os import path
 import re
+from os import path
 import argparse
 from typing import Any, List, Dict, \
   Callable, Optional, Pattern, Match
