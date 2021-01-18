@@ -47,7 +47,7 @@ setup(
   long_description=long_description,
   long_description_content_type='text/markdown',
 
-  version='0.0.10',
+  version='0.0.11',
 
   url='https://github.com/Jhuighuy/fortiel',
 

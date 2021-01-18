@@ -86,11 +86,11 @@ Functions can be also declared using the `let` directive:
 ```
 
 
-### `undef` directive
+### `del` directive
 undefines the names, previously defined with 
 the `let` directive:
 ```fortran
-#fpp undef var[, anotherVar]*
+#fpp del var[, anotherVar]*
 ```
 Builtin names like `__FILE__` or `__LINE__` cannot be undefined.
 

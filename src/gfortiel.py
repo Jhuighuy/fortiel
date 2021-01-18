@@ -32,11 +32,21 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
-import tempfile
+
 import sys
 import os
+import glob
+import tempfile
 from typing import List, Tuple
 from fortiel import TielError, tielPreprocess
+
+
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+
+
+_EXIT_SUCCESS = 0
+_EXIT_ERROR = 1
 
 _FORTRAN_EXT = [
   ".f", ".for",
@@ -55,39 +65,48 @@ def _gfortielParseArguments() -> Tuple[List[str], List[str]]:
     if isSourceFilePath:
       ext = os.path.splitext(arg)[1]
       isSourceFilePath = ext.lower() in _FORTRAN_EXT
+    # Append the argument or the file path.
     if isSourceFilePath:
-      filePaths.append(arg)
+      matchedPaths = glob.glob(arg)
+      filePaths += matchedPaths
     else:
       otherArgs.append(arg)
   return otherArgs, filePaths
 
 
 def _gfortielPreprocess(filePath: str,
-                        outputFilePath: str) -> None:
+                        outputFilePath: str) -> int:
   '''Preprocess the source or output errors in GNU Fortran style.'''
   try:
     tielPreprocess(filePath, outputFilePath)
+    return _EXIT_SUCCESS
   except TielError as error:
     lineNumber, message = error.lineNumber, error.message
     gfortranMessage \
       = f'{filePath}:{lineNumber}:{1}:\n\n\nFatal Error: {message}'
     print(gfortranMessage, file=sys.stderr)
     sys.stderr.flush()
-    sys.exit(1)
+    return _EXIT_ERROR
 
 
 def gfortielMain() -> None:
   otherArgs, filePaths = _gfortielParseArguments()
+  # Preprocess the sources.
+  exitCode = 0
   outputFilePaths = []
   for filePath in filePaths:
     outputFilePath \
-      = tempfile.NamedTemporaryFile().name \
-        + os.path.splitext(filePath)[1]
+      = tempfile.NamedTemporaryFile().name + os.path.splitext(filePath)[1]
     outputFilePaths.append(outputFilePath)
-    _gfortielPreprocess(filePath, outputFilePath)
-  gfortranCommand = f'gfortran {" ".join(otherArgs)} {" ".join(outputFilePaths)}'
-  gfortranExitCode = os.system(gfortranCommand)
-  sys.exit(gfortranExitCode)
+    exitCode |= _gfortielPreprocess(filePath, outputFilePath)
+  # Compile the preprocessed sources.
+  if exitCode == _EXIT_SUCCESS:
+    compilerCommand = f'gfortran {" ".join(otherArgs)} {" ".join(outputFilePaths)}'
+    exitCode |= os.system(compilerCommand)
+  # Delete the generated preprocessed sources and exit.
+  for outputFilePath in outputFilePaths:
+    os.remove(outputFilePath)
+  sys.exit(exitCode)
 
 
 if __name__ == "__main__":
