@@ -33,11 +33,15 @@
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
 
+"""
+Fortiel preprocessor.
+"""
+
 import re
 from os import path
 import argparse
 from typing import Any, List, Dict, \
-  Callable, Optional, Pattern, Match
+    Callable, Optional, Pattern, Match
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -45,12 +49,12 @@ from typing import Any, List, Dict, \
 
 
 class TielOptions:
-  """
-  Preprocessor options.
-  """
+    """
+    Preprocessor options.
+    """
 
-  def __init__(self) -> None:
-    self.includePaths: List[str] = []
+    def __init__(self) -> None:
+        self.include_paths: List[str] = []
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -58,53 +62,54 @@ class TielOptions:
 
 
 class TielError(Exception):
-  """
-  Preprocessor syntax tree parse error.
-  """
+    """
+    Preprocessor syntax tree parse error.
+    """
 
-  def __init__(self, message: str, filePath: str, lineNumber: int) -> None:
-    super().__init__()
-    self.message: str = message
-    self.filePath: str = filePath
-    self.lineNumber: int = lineNumber
+    def __init__(self, message: str, file_path: str, line_number: int) -> None:
+        super().__init__()
+        self.message: str = message
+        self.file_path: str = file_path
+        self.line_number: int = line_number
 
-  def __str__(self) -> str:
-    message = f'{self.filePath}:{self.lineNumber}:1:\n\n' \
-              + f'Fatal Error: {self.message}'
-    return ''.join(message)
+    def __str__(self) -> str:
+        message \
+            = f'{self.file_path}:{self.line_number}:1:\n\n' \
+            + f'Fatal Error: {self.message}'
+        return message
 
 
 class TielDirError(TielError):
-  """
-  Unexpected directive preprocessor error.
-  """
+    """
+    Unexpected directive preprocessor error.
+    """
 
 
 class TielEvalError(TielError):
-  """
-  Error in the directive or line substitution evaluation.
-  """
+    """
+    Error in the directive or line substitution evaluation.
+    """
 
 
 class TielFileError(TielEvalError):
-  """
-  Error in the include file path.
-  """
+    """
+    Error in the include file path.
+    """
 
 
 class TielTypeError(TielError):
-  """
-  Type error in the expression.
-  """
+    """
+    Type error in the expression.
+    """
 
 
 class TielEndError(TielError):
-  """
-  Unexpected end of file preprocessor error.
-  """
+    """
+    Unexpected end of file preprocessor error.
+    """
 
-  def __init__(self, filePath: str, lineNumber: int):
-    super().__init__('unexpected end of file', filePath, lineNumber)
+    def __init__(self, file_path: str, line_number: int):
+        super().__init__('unexpected end of file', file_path, line_number)
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -112,346 +117,339 @@ class TielEndError(TielError):
 
 
 class TielTree:
-  """
-  Preprocessor syntax tree.
-  """
+    """Preprocessor syntax tree.
+    """
 
-  def __init__(self, filePath: str) -> None:
-    self.filePath: str = filePath
-    self.rootNodeList: List[TielNode] = []
+    def __init__(self, file_path: str) -> None:
+        self.file_path: str = file_path
+        self.root_nodes: List[TielNode] = []
 
 
 class TielNode:
-  """
-  Preprocessor syntax tree node.
-  """
+    """Preprocessor syntax tree node.
+    """
 
-  def __init__(self, filePath: str, lineNumber: int) -> None:
-    self.filePath: str = filePath
-    self.lineNumber: int = lineNumber
+    def __init__(self, file_path: str, line_number: int) -> None:
+        self.file_path: str = file_path
+        self.line_number: int = line_number
 
 
 class TielNodeLineList(TielNode):
-  """
-  The list of regular lines syntax tree node.
-  """
+    """The list of code lines syntax tree node.
+    """
 
-  def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
-    self.lineList: List[str] = []
+    def __init__(self, file_path: str, line_number: int) -> None:
+        super().__init__(file_path, line_number)
+        self.lines: List[str] = []
 
 
 class TielNodeUse(TielNode):
-  """
-  The USE/INCLUDE directive syntax tree node.
-  """
+    """The USE/INCLUDE directive syntax tree node.
+    """
 
-  def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
-    self.headerFilePath: str = ''
-    self.doPrintLines: bool = False
+    def __init__(self, file_path: str, line_number: int) -> None:
+        super().__init__(file_path, line_number)
+        self.include_file_path: str = ''
+        self.do_print_lines: bool = False
 
 
 class TielNodeLet(TielNode):
-  """
-  The LET directive syntax tree node.
-  """
+    """The LET directive syntax tree node.
+    """
 
-  def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
-    self.name: str = ''
-    self.arguments: Optional[str] = None
-    self.expression: str = ''
+    def __init__(self, file_path: str, line_number: int) -> None:
+        super().__init__(file_path, line_number)
+        self.name: str = ''
+        self.arguments: Optional[str] = None
+        self.expression: str = ''
 
 
 class TielNodeDel(TielNode):
-  """
-  The DEL directive syntax tree node.
-  """
+    """The DEL directive syntax tree node.
+    """
 
-  def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
-    self.nameList: List[str] = []
+    def __init__(self, file_path: str, line_number: int) -> None:
+        super().__init__(file_path, line_number)
+        self.names: List[str] = []
 
 
 class TielNodeIfEnd(TielNode):
-  """
-  The IF/ELSE IF/ELSE/END IF directive syntax tree node.
-  """
+    """The IF/ELSE IF/ELSE/END IF directive syntax tree node.
+    """
 
-  def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
-    self.condExpr: str = ''
-    self.thenNodeList: List[TielNode] = []
-    self.elseIfNodeList: List[TielNodeElseIf] = []
-    self.elseNodeList: List[TielNode] = []
+    def __init__(self, file_path: str, line_number: int) -> None:
+        super().__init__(file_path, line_number)
+        self.cond_expr: str = ''
+        self.then_nodes: List[TielNode] = []
+        self.else_if_nodes: List[TielNodeElseIf] = []
+        self.else_nodes: List[TielNode] = []
 
 
 class TielNodeElseIf(TielNode):
-  """
-  The ELSE IF directive syntax tree node.
-  """
+    """The ELSE IF directive syntax tree node.
+    """
 
-  def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
-    self.condExpr: str = ''
-    self.nodeList: List[TielNode] = []
+    def __init__(self, file_path: str, line_number: int) -> None:
+        super().__init__(file_path, line_number)
+        self.cond_expr: str = ''
+        self.nodes: List[TielNode] = []
 
 
 class TielNodeDoEnd(TielNode):
-  """
-  The DO/END DO directive syntax tree node.
-  """
+    """The DO/END DO directive syntax tree node.
+    """
 
-  def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
-    self.indexName: str = ''
-    self.boundsExpr: str = ''
-    self.nodeList: List[TielNode] = []
+    def __init__(self, file_path: str, line_number: int) -> None:
+        super().__init__(file_path, line_number)
+        self.index_name: str = ''
+        self.bounds_expr: str = ''
+        self.nodes: List[TielNode] = []
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
 
-def _regExpr(pattern: str) -> Pattern[str]:
-  return re.compile(pattern, re.IGNORECASE)
+def _reg_expr(pattern: str) -> Pattern[str]:
+    return re.compile(pattern, re.IGNORECASE)
 
 
-_DIR = _regExpr(r'^\s*#fpp(?:\s+(?P<dir>.*))?$')
-_DIR_HEAD = _regExpr(r'^(?P<head>[^\s]+)(?:\s+(?P<head2>[^\s]+))?')
+_DIR = _reg_expr(r'^\s*#fpp(?:\s+(?P<dir>.*))?$')
+_DIR_HEAD = _reg_expr(r'^(?P<head>[^\s]+)(?:\s+(?P<head2>[^\s]+))?')
 
-_USE = _regExpr(r'^(?P<dir>use|include)\s+' +
-                r'(?P<path>(?:\".+\")|(?:\'.+\')|(?:\<.+\>))$')
+_USE = _reg_expr(r'^(?P<dir>use|include)\s+'
+                 + r'(?P<path>(?:\".+\")|(?:\'.+\')|(?:\<.+\>))$')
 
-_LET = _regExpr(r'^let\s+(?P<name>[a-zA-Z]\w*)\s*' +
-                r'(?P<args>\((?:\*?\*?[a-zA-Z]\w*(?:\s*,\s*\*?\*?[a-zA-Z]\w*)*)?\s*\))?\s*' +
-                r'=\s*(?P<expr>.*)$')
+_LET = _reg_expr(r'^let\s+(?P<name>[a-zA-Z]\w*)\s*'
+                 + r'(?P<args>\((?:\*?\*?[a-zA-Z]\w*(?:\s*,\s*\*?\*?[a-zA-Z]\w*)*)?\s*\))?\s*'
+                 + r'=\s*(?P<expr>.*)$')
 
-_DEL = _regExpr(r'^undef\s+(?P<names>[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)$')
+_DEL = _reg_expr(r'^undef\s+(?P<names>[a-zA-Z]\w*(?:\s*,\s*[a-zA-Z]\w*)*)$')
 
-_IF = _regExpr(r'^if\s*(?P<cond>.+)$')
-_ELSE_IF = _regExpr(r'^else\s*if\s*(?P<cond>.+)$')
-_ELSE = _regExpr(r'^else$')
-_END_IF = _regExpr(r'^end\s*if$')
+_IF = _reg_expr(r'^if\s*(?P<cond>.+)$')
+_ELSE_IF = _reg_expr(r'^else\s*if\s*(?P<cond>.+)$')
+_ELSE = _reg_expr(r'^else$')
+_END_IF = _reg_expr(r'^end\s*if$')
 
-_DO = _regExpr(r'^do\s+(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$')
-_END_DO = _regExpr(r'^end\s*do$')
+_DO = _reg_expr(r'^do\s+(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$')
+_END_DO = _reg_expr(r'^end\s*do$')
 
-_LINE = _regExpr(r'(line)?\s*(?P<num>\d+)\s+(?P<path>(\'.+\')|(\".+\"))')
+_LINE = _reg_expr(r'(line)?\s*(?P<num>\d+)\s+(?P<path>(\'.+\')|(\".+\"))')
 
 
 class TielParser:
-  """
-  Preprocessor syntax tree parser.
-  """
+    """Preprocessor syntax tree parser.
+    """
 
-  def __init__(self,
-               filePath: str, lines: List[str]) -> None:
-    self._filePath: str = filePath
-    self._lines: List[str] = lines
-    self._curLine: str = self._lines[0]
-    self._curLineIndex: int = 0
-    self._curLineNumber: int = 1
+    def __init__(self,
+                 file_path: str, lines: List[str]) -> None:
+        self._file_path: str = file_path
+        self._lines: List[str] = lines
+        self._cur_line: str = self._lines[0]
+        self._cur_line_index: int = 0
+        self._cur_line_number: int = 1
 
-  def _matchesEnd(self) -> bool:
-    return self._curLineIndex >= len(self._lines)
+    def _matches_end(self) -> bool:
+        return self._cur_line_index >= len(self._lines)
 
-  def _advanceLine(self) -> None:
-    self._curLineIndex += 1
-    self._curLineNumber += 1
-    self._curLine: str = '' if self._matchesEnd() else self._lines[self._curLineIndex].rstrip()
+    def _advance_line(self) -> None:
+        self._cur_line_index += 1
+        self._cur_line_number += 1
+        self._cur_line: str = \
+            '' if self._matches_end() else self._lines[self._cur_line_index].rstrip()
 
-  def _matchesLine(self, *regExpList: Pattern[str]) -> Optional[Match[str]]:
-    if self._matchesEnd():
-      raise TielEndError(self._filePath, self._curLineNumber)
-    for regExp in regExpList:
-      match = regExp.match(self._curLine)
-      if match is not None:
+    def _matches_line(self, *reg_expr_list: Pattern[str]) -> Optional[Match[str]]:
+        if self._matches_end():
+            raise TielEndError(self._file_path, self._cur_line_number)
+        for reg_expr in reg_expr_list:
+            match = reg_expr.match(self._cur_line)
+            if match is not None:
+                return match
+        return None
+
+    def _parse_line_cont(self) -> None:
+        """Parse continuation lines."""
+        while self._cur_line.endswith('&'):
+            self._cur_line: str = self._cur_line[:-1] + ' '
+            self._cur_line_index += 1
+            self._cur_line_number += 1
+            if self._matches_end():
+                raise TielEndError(self._file_path, self._cur_line_number)
+            next_line = self._lines[self._cur_line_index].lstrip()
+            if next_line.startswith('!'):
+                continue
+            if next_line.startswith('&'):
+                next_line = next_line[1:].lstrip()
+            self._cur_line += next_line.rstrip()
+
+    @staticmethod
+    def _parse_head(directive: Optional[str]) -> Optional[str]:
+        # Empty directives does not have a head.
+        if directive is None or directive == '':
+            return None
+        # ELSE is merged with IF,
+        # END is merged with any following word.
+        dir_head, dir_head2 \
+            = _DIR_HEAD.match(directive).group('head', 'head2')
+        dir_head = dir_head.lower()
+        if dir_head2 is not None:
+            dir_head2 = dir_head2.lower()
+            if dir_head == 'end' or dir_head == 'else' and dir_head2 == 'if':
+                dir_head += dir_head2
+        return dir_head
+
+    def _matches_dir_head(self, *dir_head_list: str) -> Optional[str]:
+        self._parse_line_cont()
+        dir_match = self._matches_line(_DIR)
+        if dir_match is not None:
+            directive = dir_match['dir'].lower()
+            dir_head = type(self)._parse_head(directive)
+            if dir_head in dir_head_list:
+                return dir_head
+        return None
+
+    def _match_directive(self, reg_exp: Pattern[str]) -> Match[str]:
+        directive = self._matches_line(_DIR).group('dir').rstrip()
+        match = reg_exp.match(directive)
+        if match is None:
+            dir_head = type(self)._parse_head(directive)
+            message = f'invalid <{dir_head}> directive syntax'
+            raise TielDirError(message, self._file_path, self._cur_line_number)
+        self._advance_line()
         return match
-    return None
 
-  def _parseLineCont(self) -> None:
-    """Parse continuation lines."""
-    while self._curLine.endswith('&'):
-      self._curLine: str = self._curLine[:-1] + ' '
-      self._curLineIndex += 1
-      self._curLineNumber += 1
-      if self._matchesEnd():
-        raise TielEndError(self._filePath, self._curLineNumber)
-      nextLine = self._lines[self._curLineIndex].lstrip()
-      if nextLine.startswith('!'):
-        continue
-      if nextLine.startswith('&'):
-        nextLine = nextLine[1:].lstrip()
-      self._curLine += nextLine.rstrip()
+    def parse(self) -> TielTree:
+        """Parse the source lines."""
+        tree = TielTree(self._file_path)
+        while not self._matches_end():
+            tree.root_nodes.append(self._parse_single())
+        return tree
 
-  @staticmethod
-  def _getHead(directive: Optional[str]) -> Optional[str]:
-    # Empty directives does not have a head.
-    if directive is None or directive == '':
-      return None
-    # ELSE is merged with IF,
-    # END is merged with any following word.
-    dirHead, dirHead2 = _DIR_HEAD.match(directive).group('head', 'head2')
-    dirHead = dirHead.lower()
-    if dirHead2 is not None:
-      dirHead2 = dirHead2.lower()
-      if dirHead == 'end' or dirHead == 'else' and dirHead2 == 'if':
-        dirHead += dirHead2
-    return dirHead
+    def _parse_single(self) -> TielNode:
+        """Parse a directive or a line block."""
+        if self._matches_line(_DIR):
+            return self._parse_directive()
+        return self._parse_line_list()
 
-  def _matchesDirHead(self, *dirHeadList: str) -> Optional[str]:
-    self._parseLineCont()
-    dirMatch = self._matchesLine(_DIR)
-    if dirMatch is not None:
-      directive = dirMatch['dir'].lower()
-      dirHead = type(self)._getHead(directive)
-      if dirHead in dirHeadList:
-        return dirHead
-    return None
+    def _parse_line_list(self) -> TielNodeLineList:
+        """Parse a line list."""
+        node = TielNodeLineList(self._file_path,
+                                self._cur_line_number)
+        while True:
+            node.lines.append(self._cur_line)
+            self._advance_line()
+            if self._matches_end() or self._matches_line(_DIR):
+                break
+        return node
 
-  def _matchDirective(self, regExp: Pattern[str]) -> Match[str]:
-    directive = self._matchesLine(_DIR).group('dir').rstrip()
-    match = regExp.match(directive)
-    if match is None:
-      dirHead = type(self)._getHead(directive)
-      message = f'invalid <{dirHead}> directive syntax'
-      raise TielDirError(message, self._filePath, self._curLineNumber)
-    self._advanceLine()
-    return match
+    def _parse_directive(self) -> TielNode:
+        """Parse a directive."""
+        self._parse_line_cont()
+        directive = self._matches_line(_DIR)['dir']
+        dir_head = type(self)._parse_head(directive)
+        if dir_head in ['use', 'include']:
+            return self._parse_directive_use()
+        if dir_head == 'let':
+            return self._parse_directive_let()
+        if dir_head == 'del':
+            return self._parse_directive_del()
+        if dir_head == 'if':
+            return self._parse_directive_if_end()
+        if dir_head == 'do':
+            return self._parse_directive_do_end()
+        if dir_head == 'line' \
+                or (dir_head is not None and dir_head.isdecimal()):
+            self._parse_directive_line()
+            return self._parse_single()
+        # Determine the error type:
+        # either the known directive is misplaced,
+        # either the directive is unknown.
+        if dir_head is None:
+            message = f'empty directive'
+            raise TielDirError(message, self._file_path, self._cur_line_number)
+        elif dir_head in ['else', 'elseif', 'endif', 'enddo']:
+            message = f'misplaced directive <{dir_head}>'
+            raise TielDirError(message, self._file_path, self._cur_line_number)
+        else:
+            message = f'unknown or mistyped directive <{dir_head}>'
+            raise TielDirError(message, self._file_path, self._cur_line_number)
 
-  def parse(self) -> TielTree:
-    """Parse the source lines."""
-    tree = TielTree(self._filePath)
-    while not self._matchesEnd():
-      tree.rootNodeList.append(self._parseSingle())
-    return tree
+    def _parse_directive_use(self) -> TielNodeUse:
+        """Parse USE/INCLUDE directives."""
+        node = TielNodeUse(self._file_path,
+                           self._cur_line_number)
+        directive, node.include_file_path \
+            = self._match_directive(_USE).group('dir', 'path')
+        node.include_file_path = node.include_file_path[1:-1]
+        if directive.lower() == 'include':
+            node.do_print_lines = True
+        return node
 
-  def _parseSingle(self) -> TielNode:
-    """Parse a directive or a line block."""
-    if self._matchesLine(_DIR):
-      return self._parseDirective()
-    return self._parseLineList()
+    def _parse_directive_let(self) -> TielNodeLet:
+        """Parse LET directive."""
+        # Note that we are not
+        # evaluating or validating define arguments and body here.
+        node = TielNodeLet(self._file_path,
+                           self._cur_line_number)
+        node.name, node.arguments, node.expression \
+            = self._match_directive(_LET).group('name', 'args', 'expr')
+        if node.arguments is not None:
+            node.arguments = node.arguments[1:-1].strip()
+        return node
 
-  def _parseLineList(self) -> TielNodeLineList:
-    """Parse a line list."""
-    node = TielNodeLineList(self._filePath,
-                            self._curLineNumber)
-    while True:
-      node.lineList.append(self._curLine)
-      self._advanceLine()
-      if self._matchesEnd() or self._matchesLine(_DIR):
-        break
-    return node
+    def _parse_directive_del(self) -> TielNodeDel:
+        """Parse DEL directive."""
+        # Note that we are not
+        # evaluating or validating define name here.
+        node = TielNodeDel(self._file_path,
+                           self._cur_line_number)
+        names = self._match_directive(_DEL).group('names')
+        node.names = [name.strip() for name in names.split(',')]
+        return node
 
-  def _parseDirective(self) -> TielNode:
-    """Parse a directive."""
-    self._parseLineCont()
-    directive = self._matchesLine(_DIR)['dir']
-    dirHead = type(self)._getHead(directive)
-    if dirHead in ['use', 'include']:
-      return self._parseDirectiveUse()
-    if dirHead == 'let':
-      return self._parseDirectiveLet()
-    if dirHead == 'del':
-      return self._parseDirectiveDel()
-    if dirHead == 'if':
-      return self._parseDirectiveIfEnd()
-    if dirHead == 'do':
-      return self._parseDirectiveDoEnd()
-    if dirHead == 'line' or (dirHead is not None and dirHead.isdecimal()):
-      self._parseDirectiveLine()
-      return self._parseSingle()
-    # Determine the error type:
-    # either the known directive is misplaced,
-    # either the directive is unknown.
-    if dirHead is None:
-      message = f'empty directive'
-      raise TielDirError(message, self._filePath, self._curLineNumber)
-    elif dirHead in ['else', 'elseif', 'endif', 'enddo']:
-      message = f'misplaced directive <{dirHead}>'
-      raise TielDirError(message, self._filePath, self._curLineNumber)
-    else:
-      message = f'unknown or mistyped directive <{dirHead}>'
-      raise TielDirError(message, self._filePath, self._curLineNumber)
+    def _parse_directive_if_end(self) -> TielNodeIfEnd:
+        """Parse IF/ELSE IF/ELSE/END IF directives."""
+        # Note that we are not
+        # evaluating or validating conditions here.
+        node = TielNodeIfEnd(self._file_path,
+                             self._cur_line_number)
+        node.cond_expr = self._match_directive(_IF)['cond']
+        while not self._matches_dir_head('elseif', 'else', 'endif'):
+            node.then_nodes.append(self._parse_single())
+        if self._matches_dir_head('elseif'):
+            while not self._matches_dir_head('else', 'endif'):
+                else_if_node = TielNodeElseIf(self._file_path,
+                                              self._cur_line_number)
+                else_if_node.cond_expr = self._match_directive(_ELSE_IF)['cond']
+                while not self._matches_dir_head('elseif', 'else', 'endif'):
+                    else_if_node.nodes.append(self._parse_single())
+                node.else_if_nodes.append(else_if_node)
+        if self._matches_dir_head('else'):
+            self._match_directive(_ELSE)
+            while not self._matches_dir_head('endif'):
+                node.else_nodes.append(self._parse_single())
+        self._match_directive(_END_IF)
+        return node
 
-  def _parseDirectiveUse(self) -> TielNodeUse:
-    """Parse USE/INCLUDE directives."""
-    node = TielNodeUse(self._filePath,
-                       self._curLineNumber)
-    directive, node.headerFilePath \
-        = self._matchDirective(_USE).group('dir', 'path')
-    node.headerFilePath = node.headerFilePath[1:-1]
-    if directive.lower() == 'include':
-      node.doPrintLines = True
-    return node
+    def _parse_directive_do_end(self) -> TielNodeDoEnd:
+        """Parse DO/END DO directives."""
+        # Note that we are not
+        # evaluating or validating loop bounds here.
+        node = TielNodeDoEnd(self._file_path,
+                             self._cur_line_number)
+        node.index_name, node.bounds_expr \
+            = self._match_directive(_DO).group('index', 'bounds')
+        while not self._matches_dir_head('enddo'):
+            node.nodes.append(self._parse_single())
+        self._match_directive(_END_DO)
+        return node
 
-  def _parseDirectiveLet(self) -> TielNodeLet:
-    """Parse LET directive."""
-    # Note that we are not
-    # evaluating or validating define arguments and body here.
-    node = TielNodeLet(self._filePath,
-                       self._curLineNumber)
-    node.name, node.arguments, node.expression \
-        = self._matchDirective(_LET).group('name', 'args', 'expr')
-    if node.arguments is not None:
-      node.arguments = node.arguments[1:-1].strip()
-    return node
-
-  def _parseDirectiveDel(self) -> TielNodeDel:
-    """Parse DEL directive."""
-    # Note that we are not
-    # evaluating or validating define name here.
-    node = TielNodeDel(self._filePath,
-                       self._curLineNumber)
-    nameList = self._matchDirective(_DEL).group('names')
-    node.nameList = [name.strip() for name in nameList.split(',')]
-    return node
-
-  def _parseDirectiveIfEnd(self) -> TielNodeIfEnd:
-    """Parse IF/ELSE IF/ELSE/END IF directives."""
-    # Note that we are not
-    # evaluating or validating conditions here.
-    node = TielNodeIfEnd(self._filePath,
-                         self._curLineNumber)
-    node.condExpr = self._matchDirective(_IF)['cond']
-    while not self._matchesDirHead('elseif', 'else', 'endif'):
-      node.thenNodeList.append(self._parseSingle())
-    if self._matchesDirHead('elseif'):
-      while not self._matchesDirHead('else', 'endif'):
-        elseIfNode = TielNodeElseIf(self._filePath,
-                                    self._curLineNumber)
-        elseIfNode.condExpr = self._matchDirective(_ELSE_IF)['cond']
-        while not self._matchesDirHead('elseif', 'else', 'endif'):
-          elseIfNode.nodeList.append(self._parseSingle())
-        node.elseIfNodeList.append(elseIfNode)
-    if self._matchesDirHead('else'):
-      self._matchDirective(_ELSE)
-      while not self._matchesDirHead('endif'):
-        node.elseNodeList.append(self._parseSingle())
-    self._matchDirective(_END_IF)
-    return node
-
-  def _parseDirectiveDoEnd(self) -> TielNodeDoEnd:
-    """Parse DO/END DO directives."""
-    # Note that we are not
-    # evaluating or validating loop bounds here.
-    node = TielNodeDoEnd(self._filePath,
-                         self._curLineNumber)
-    node.indexName, node.boundsExpr \
-        = self._matchDirective(_DO).group('index', 'bounds')
-    while not self._matchesDirHead('enddo'):
-      node.nodeList.append(self._parseSingle())
-    self._matchDirective(_END_DO)
-    return node
-
-  def _parseDirectiveLine(self) -> None:
-    """Parse LINE directive."""
-    self._filePath, self._curLineNumber \
-        = self._matchDirective(_LINE).group('path', 'num')
-    self._filePath = self._filePath[1:-1]
-    self._curLineNumber = int(self._curLineNumber)
+    def _parse_directive_line(self) -> None:
+        """Parse LINE directive."""
+        self._file_path, self._cur_line_number \
+            = self._match_directive(_LINE).group('path', 'num')
+        self._file_path = self._file_path[1:-1]
+        self._cur_line_number = int(self._cur_line_number)
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -459,255 +457,259 @@ class TielParser:
 
 
 _BUILTIN_NAMES = [
-  '__FILE__', '__LINE__',
-  '__DATE__', '__TIME__',
-  '__INDEX__',
+    '__FILE__', '__LINE__',
+    '__DATE__', '__TIME__',
+    '__INDEX__',
 ]
 
 
 class TielEvaluator:
-  """
-  Abstract syntax tree evaluator.
-  """
+    """Preprocessor syntax tree evaluator.
+    """
 
-  def __init__(self, options: TielOptions):
-    self._scope: Dict[str, Any] = {}
-    self._options: TielOptions = options
+    def __init__(self, options: TielOptions):
+        self._scope: Dict[str, Any] = {}
+        self._options: TielOptions = options
 
-  def evalTree(self,
-               tree: TielTree,
-               printFunc: Callable[[str], None]) -> None:
-    """Evaluate the syntax tree or the syntax tree node."""
-    self._evalNodeList(tree.rootNodeList, printFunc)
+    def eval_tree(self,
+                  tree: TielTree,
+                  print_func: Callable[[str], None]) -> None:
+        """Evaluate the syntax tree or the syntax tree node."""
+        self._eval_node_list(tree.root_nodes, print_func)
 
-  def _evalNodeList(self,
-                    nodes: List[TielNode],
-                    printFunc: Callable[[str], None]) -> None:
-    """Evaluate the syntax tree node or a list of nodes."""
-    for node in nodes:
-      if isinstance(node, TielNodeLineList):
-        self._evalLineList(node, printFunc)
-      else:
-        self._evalDirective(node, printFunc)
+    def _eval_node_list(self,
+                        nodes: List[TielNode],
+                        print_func: Callable[[str], None]) -> None:
+        """Evaluate the syntax tree node or a list of nodes."""
+        for node in nodes:
+            if isinstance(node, TielNodeLineList):
+                self._eval_line_list(node, print_func)
+            else:
+                self._eval_directive(node, print_func)
 
-  def _evalExpr(self,
-                expression: str,
-                filePath: str, lineNumber: int) -> Any:
-    """Evaluate Python expression."""
-    try:
-      value = eval(expression, self._scope)
-      return value
-    except Exception as error:
-      message = 'Python expression evaluation error: ' \
-                + f'{str(error).replace("<string>", f"expression `{expression}`")}'
-      raise TielEvalError(message, filePath, lineNumber) from error
+    def _eval_python_expr(self,
+                          expression: str,
+                          file_path: str, line_number: int) -> Any:
+        """Evaluate Python expression."""
+        try:
+            value = eval(expression, self._scope)
+            return value
+        except Exception as error:
+            message = 'Python expression evaluation error: ' \
+                      + f'{str(error).replace("<string>", f"expression `{expression}`")}'
+            raise TielEvalError(message, file_path, line_number) from error
 
-  def _evalLine(self,
-                line: str,
-                filePath: str, lineNumber: int,
-                printFunc: Callable[[str], None]) -> None:
-    """Evaluate in-line substitutions."""
-    # Evaluate expression substitutions.
-    def _lineSub(match: Match[str]) -> str:
-      expression = match['expr']
-      return str(self._evalExpr(expression, filePath, lineNumber))
-    line = re.sub(r'`(?P<expr>.+)`', _lineSub, line)
+    def _eval_line(self,
+                   line: str,
+                   file_path: str, line_number: int,
+                   print_func: Callable[[str], None]) -> None:
+        """Evaluate in-line substitutions."""
+        # Evaluate expression substitutions.
+        def _line_sub(match: Match[str]) -> str:
+            expression = match['expr']
+            return str(self._eval_python_expr(expression, file_path, line_number))
+        line = re.sub(r'`(?P<expr>.+)`', _line_sub, line)
 
-    # Evaluate <@:> substitutions.
-    def _loopSub(match: Match[str]) -> str:
-      expression = match['expr']
-      index = self._scope.get('__INDEX__')
-      if index is None:
-        message = '<@:> substitution outside of the <do> loop body'
-        raise TielEvalError(message, filePath, lineNumber)
-      return str(index * expression)
-    line = re.sub(r'@(?P<expr>:(\s*,)?)', _loopSub, line)
-    printFunc(line)
+        # Evaluate <@:> substitutions.
+        def _loop_sub(match: Match[str]) -> str:
+            expression = match['expr']
+            index = self._scope.get('__INDEX__')
+            if index is None:
+                message = '<@:> substitution outside of the <do> loop body'
+                raise TielEvalError(message, file_path, line_number)
+            return str(index * expression)
+        line = re.sub(r'@(?P<expr>:(\s*,)?)', _loop_sub, line)
+        print_func(line)
 
-  def _evalLineList(self,
-                    node: TielNodeLineList,
-                    printFunc: Callable[[str], None]) -> None:
-    """Evaluate line block."""
-    printFunc(f'# {node.lineNumber} "{node.filePath}"')
-    for lineNumber, line in enumerate(node.lineList, start=node.lineNumber):
-      self._evalLine(line, node.filePath, lineNumber, printFunc)
+    def _eval_line_list(self,
+                        node: TielNodeLineList,
+                        print_func: Callable[[str], None]) -> None:
+        """Evaluate line block."""
+        print_func(f'# {node.line_number} "{node.file_path}"')
+        for line_number, line in \
+                enumerate(node.lines, start=node.line_number):
+            self._eval_line(line, node.file_path, line_number, print_func)
 
-  def _evalDirective(self,
-                     node: TielNode,
-                     printFunc: Callable[[str], None]):
-    """Evaluate directive."""
-    if isinstance(node, TielNodeUse):
-      return self._evalDirectiveUse(node, printFunc)
-    if isinstance(node, TielNodeLet):
-      return self._evalDirectiveLet(node)
-    if isinstance(node, TielNodeDel):
-      return self._evalDirectiveDel(node)
-    if isinstance(node, TielNodeIfEnd):
-      return self._evalDirectiveIfEnd(node, printFunc)
-    if isinstance(node, TielNodeDoEnd):
-      return self._evalDirectiveDoEnd(node, printFunc)
-    nodeType = node.__class__.__name__
-    raise RuntimeError(f'no evaluator for directive type {nodeType}')
+    def _eval_directive(self,
+                        node: TielNode,
+                        print_func: Callable[[str], None]):
+        """Evaluate directive."""
+        if isinstance(node, TielNodeUse):
+            return self._eval_directive_use(node, print_func)
+        if isinstance(node, TielNodeLet):
+            return self._eval_directive_let(node)
+        if isinstance(node, TielNodeDel):
+            return self._eval_directive_del(node)
+        if isinstance(node, TielNodeIfEnd):
+            return self._eval_directive_if_end(node, print_func)
+        if isinstance(node, TielNodeDoEnd):
+            return self._eval_directive_do_end(node, print_func)
+        node_type = node.__class__.__name__
+        raise RuntimeError(f'no evaluator for directive type {node_type}')
 
-  @staticmethod
-  def _findFile(filePath: str,
-                dirPathList: List[str]) -> Optional[str]:
-    filePath = path.expanduser(filePath)
-    if path.exists(filePath):
-      return filePath
-    for dirPath in dirPathList:
-      filePathInDir = path.expanduser(path.join(dirPath, filePath))
-      if path.exists(filePathInDir):
-        return filePathInDir
-    return None
+    @staticmethod
+    def _find_file(file_path: str,
+                   dir_paths: List[str]) -> Optional[str]:
+        file_path = path.expanduser(file_path)
+        if path.exists(file_path):
+            return file_path
+        for dir_path in dir_paths:
+            file_path_in_dir = path.expanduser(path.join(dir_path, file_path))
+            if path.exists(file_path_in_dir):
+                return file_path_in_dir
+        return None
 
-  def _evalDirectiveUse(self,
-                        node: TielNodeUse,
-                        printFunc: Callable[[str], None]) -> None:
-    """Evaluate USE/INCLUDE directive."""
-    curDirPath, _ = path.split(node.filePath)
-    headerFilePath \
-        = type(self)._findFile(node.headerFilePath,
-                               self._options.includePaths + [curDirPath])
-    if headerFilePath is None:
-      message = f'`{node.headerFilePath}` was not found in the include paths'
-      raise TielFileError(message, node.filePath, node.lineNumber)
-    try:
-      with open(headerFilePath, mode='r') as fp:
-        headerLines = fp.read().splitlines()
-    except IsADirectoryError as error:
-      message = f'`{node.headerFilePath}` is a directory, file expected'
-      raise TielFileError(message, node.filePath, node.lineNumber) from error
-    headerTree = TielParser(node.headerFilePath, headerLines).parse()
-    if node.doPrintLines:
-      self.evalTree(headerTree, printFunc)
-    else:
-      self.evalTree(headerTree, lambda _: None)
+    def _eval_directive_use(self,
+                            node: TielNodeUse,
+                            print_func: Callable[[str], None]) -> None:
+        """Evaluate USE/INCLUDE directive."""
+        cur_dir_path, _ = path.split(node.file_path)
+        header_file_path \
+            = type(self)._find_file(node.include_file_path,
+                                    self._options.include_paths + [cur_dir_path])
+        if header_file_path is None:
+            message = f'`{node.include_file_path}` was not found in the include paths'
+            raise TielFileError(message, node.file_path, node.line_number)
+        try:
+            with open(header_file_path, mode='r') as fp:
+                header_lines = fp.read().splitlines()
+        except IsADirectoryError as error:
+            message = f'`{node.include_file_path}` is a directory, file expected'
+            raise TielFileError(message, node.file_path, node.line_number) from error
+        header_tree = TielParser(node.include_file_path, header_lines).parse()
+        if node.do_print_lines:
+            self.eval_tree(header_tree, print_func)
+        else:
+            self.eval_tree(header_tree, lambda _: None)
 
-  def _evalDirectiveLet(self,
-                        node: TielNodeLet) -> None:
-    """Evaluate LET directive."""
-    if node.name in self._scope:
-      message = f'name `{node.name}` is already defined.'
-      raise TielEvalError(message, node.filePath, node.lineNumber)
-    if node.name in _BUILTIN_NAMES:
-      message = f'builtin name <{node.name}> can not be redefined'
-      raise TielEvalError(message, node.filePath, node.lineNumber)
-    if node.arguments is None:
-      value = self._evalExpr(node.expression,
-                             node.filePath, node.lineNumber)
-      self._scope[node.name] = value
-    else:
-      argNameList = [arg.strip() for arg in node.arguments.split(',')]
-      if len(argNameList) > len(set(argNameList)):
-        message = 'functional <let> arguments must be unique'
-        raise TielEvalError(message, node.filePath, node.lineNumber)
-      # Evaluate functional LET as lambda function.
-      expression = f'lambda {node.arguments}: {node.expression}'
-      func = self._evalExpr(expression,
-                            node.filePath, node.lineNumber)
-      self._scope[node.name] = func
+    def _eval_directive_let(self,
+                            node: TielNodeLet) -> None:
+        """Evaluate LET directive."""
+        if node.name in self._scope:
+            message = f'name `{node.name}` is already defined.'
+            raise TielEvalError(message, node.file_path, node.line_number)
+        if node.name in _BUILTIN_NAMES:
+            message = f'builtin name <{node.name}> can not be redefined'
+            raise TielEvalError(message, node.file_path, node.line_number)
+        if node.arguments is None:
+            value = self._eval_python_expr(node.expression,
+                                           node.file_path, node.line_number)
+            self._scope[node.name] = value
+        else:
+            arg_names = [arg.strip() for arg in node.arguments.split(',')]
+            if len(arg_names) > len(set(arg_names)):
+                message = 'functional <let> arguments must be unique'
+                raise TielEvalError(message, node.file_path, node.line_number)
+            # Evaluate functional LET as lambda function.
+            expression = f'lambda {node.arguments}: {node.expression}'
+            func = self._eval_python_expr(expression,
+                                          node.file_path, node.line_number)
+            self._scope[node.name] = func
 
-  def _evalDirectiveDel(self,
-                        node: TielNodeDel) -> None:
-    """Evaluate DEL directive."""
-    for name in node.nameList:
-      if name not in self._scope:
-        message = f'name `{name}` was not previously defined'
-        raise TielEvalError(message, node.filePath, node.lineNumber)
-      if name in _BUILTIN_NAMES:
-        message = f'builtin name <{name}> can not be undefined'
-        raise TielEvalError(message, node.filePath, node.lineNumber)
-      del self._scope[name]
+    def _eval_directive_del(self,
+                            node: TielNodeDel) -> None:
+        """Evaluate DEL directive."""
+        for name in node.names:
+            if name not in self._scope:
+                message = f'name `{name}` was not previously defined'
+                raise TielEvalError(message, node.file_path, node.line_number)
+            if name in _BUILTIN_NAMES:
+                message = f'builtin name <{name}> can not be undefined'
+                raise TielEvalError(message, node.file_path, node.line_number)
+            del self._scope[name]
 
-  def _evalDirectiveIfEnd(self,
-                          node: TielNodeIfEnd,
-                          printFunc: Callable[[str], None]) -> None:
-    """Evaluate IF/ELSE IF/ELSE/END IF node."""
-    if self._evalExpr(node.condExpr,
-                      node.filePath, node.lineNumber):
-      self._evalNodeList(node.thenNodeList, printFunc)
-    else:
-      for elseIfNode in node.elseIfNodeList:
-        if self._evalExpr(elseIfNode.condExpr,
-                          elseIfNode.filePath, elseIfNode.lineNumber):
-          self._evalNodeList(elseIfNode.nodeList, printFunc)
-          break
-      else:
-        self._evalNodeList(node.elseNodeList, printFunc)
+    def _eval_directive_if_end(self,
+                               node: TielNodeIfEnd,
+                               print_func: Callable[[str], None]) -> None:
+        """Evaluate IF/ELSE IF/ELSE/END IF node."""
+        if self._eval_python_expr(
+                node.cond_expr,
+                node.file_path, node.line_number):
+            self._eval_node_list(node.then_nodes, print_func)
+        else:
+            for elseIfNode in node.else_if_nodes:
+                if self._eval_python_expr(
+                        elseIfNode.cond_expr,
+                        elseIfNode.file_path, elseIfNode.line_number):
+                    self._eval_node_list(elseIfNode.nodes, print_func)
+                    break
+            else:
+                self._eval_node_list(node.else_nodes, print_func)
 
-  def _evalDirectiveDoEnd(self,
-                          node: TielNodeDoEnd,
-                          printFunc: Callable[[str], None]) -> None:
-    """Evaluate DO/END DO node."""
-    bounds = self._evalExpr(node.boundsExpr,
-                            node.filePath, node.lineNumber)
-    if not isinstance(bounds, tuple) \
-        or not (2 <= len(bounds) <= 3) \
-            or list(map(type, bounds)) != len(bounds) * [int]:
-      message = 'tuple of two or three integers inside the <do> ' \
-                + f' directive bounds is expected, got `{node.boundsExpr}`'
-      raise TielEvalError(message, node.filePath, node.lineNumber)
-    start, stop = bounds[0:2]
-    step = bounds[2] if len(bounds) == 3 else 1
-    # Save and restore previous index value
-    # in case we are inside the nested loop.
-    prevIndex = self._scope.get('__INDEX__')
-    for index in range(start, stop + 1, step):
-      self._scope[node.indexName] = index
-      self._scope['__INDEX__'] = index
-      self._evalNodeList(node.nodeList, printFunc)
-    del self._scope[node.indexName]
-    if prevIndex is not None:
-      self._scope['__INDEX__'] = prevIndex
-    else:
-      del self._scope['__INDEX__']
-
-
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
-
-
-def tielPreprocess(filePath: str,
-                   outputFilePath: str,
-                   options: TielOptions = TielOptions()) -> None:
-  """Preprocess the source file."""
-  with open(filePath, 'r') as fp:
-    lines = fp.read().splitlines()
-  tree = TielParser(filePath, lines).parse()
-  with open(outputFilePath, 'w') as fp:
-    printFunc = lambda line: print(line, file=fp)
-    TielEvaluator(options).evalTree(tree, printFunc)
+    def _eval_directive_do_end(self,
+                               node: TielNodeDoEnd,
+                               print_func: Callable[[str], None]) -> None:
+        """Evaluate DO/END DO node."""
+        bounds = self._eval_python_expr(node.bounds_expr,
+                                        node.file_path, node.line_number)
+        if not isinstance(bounds, tuple) \
+                or not (2 <= len(bounds) <= 3) \
+                or list(map(type, bounds)) != len(bounds) * [int]:
+            message \
+                = 'tuple of two or three integers inside the <do> ' \
+                + f' directive bounds is expected, got `{node.bounds_expr}`'
+            raise TielEvalError(message, node.file_path, node.line_number)
+        start, stop = bounds[0:2]
+        step = bounds[2] if len(bounds) == 3 else 1
+        # Save and restore previous index value
+        # in case we are inside the nested loop.
+        prev_index = self._scope.get('__INDEX__')
+        for index in range(start, stop + 1, step):
+            self._scope[node.index_name] = index
+            self._scope['__INDEX__'] = index
+            self._eval_node_list(node.nodes, print_func)
+        del self._scope[node.index_name]
+        if prev_index is not None:
+            self._scope['__INDEX__'] = prev_index
+        else:
+            del self._scope['__INDEX__']
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
 
-def tielMain() -> None:
-  argParser = \
-    argparse.ArgumentParser(prog='fortiel')
-  argParser.add_argument(
-    '-D', '--define',
-    action='append', dest='defines', metavar='NAME[=VALUE]',
-    help='define a named variable')
-  argParser.add_argument(
-    '-I', '--include',
-    action='append', dest='defines', metavar='INCLUDE_DIR',
-    help='add an include directory path')
-  argParser.add_argument(
-    '-N', '--line_markers',
-    choices=['fpp', 'cpp', 'node'], default='fpp',
-    help='emit line markers in the output')
-  argParser.add_argument('file_path',
-                         help='input file path')
-  argParser.add_argument('output_file_path',
-                         help='output file path')
-  args = argParser.parse_args()
-  filePath = args.file_path
-  outputFilePath = args.output_file_path
-  tielPreprocess(filePath, outputFilePath)
+def tiel_preprocess(file_path: str,
+                    output_file_path: str,
+                    options: TielOptions = TielOptions()) -> None:
+    """Preprocess the source file."""
+    with open(file_path, 'r') as fp:
+        lines = fp.read().splitlines()
+    tree = TielParser(file_path, lines).parse()
+    with open(output_file_path, 'w') as fp:
+        def _print_func(line): print(line, file=fp)
+        TielEvaluator(options).eval_tree(tree, _print_func)
+
+
+# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+
+
+def tiel_main() -> None:
+    """Fortiel entry point."""
+    arg_parser = \
+        argparse.ArgumentParser(prog='fortiel')
+    arg_parser.add_argument(
+        '-D', '--define',
+        action='append', dest='defines', metavar='NAME[=VALUE]',
+        help='define a named variable')
+    arg_parser.add_argument(
+        '-I', '--include',
+        action='append', dest='defines', metavar='INCLUDE_DIR',
+        help='add an include directory path')
+    arg_parser.add_argument(
+        '-N', '--line_markers',
+        choices=['fpp', 'cpp', 'node'], default='fpp',
+        help='emit line markers in the output')
+    arg_parser.add_argument('file_path',
+                            help='input file path')
+    arg_parser.add_argument('output_file_path',
+                            help='output file path')
+    args = arg_parser.parse_args()
+    file_path = args.file_path
+    output_file_path = args.output_file_path
+    tiel_preprocess(file_path, output_file_path)
 
 
 if __name__ == '__main__':
-  tielMain()
+    tiel_main()

@@ -262,3 +262,4 @@ end module Distances
 - Long lines folding.
 - CLI.
 - GFortiel documentation.
+- Builtin variables.
