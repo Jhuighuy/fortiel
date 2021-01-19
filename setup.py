@@ -48,7 +48,7 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
 
-    version='0.0.11',
+    version='0.0.12',
 
     url='https://github.com/Jhuighuy/fortiel',
 
@@ -64,8 +64,6 @@ setup(
         'Topic :: Software Development :: Build Tools',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3 :: Only',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
     ],
