@@ -189,6 +189,33 @@ class TielNodeDoEnd(TielNode):
     self.nodes: List[TielNode] = []
 
 
+class TielNodeAnchor(TielNode):
+  """The ANCHOR directive syntax tree node.
+  """
+  def __init__(self, filePath: str, lineNumber: int) -> None:
+    super().__init__(filePath, lineNumber)
+    self.name: str = ''
+
+
+class TielNodeOutput(TielNode):
+  """The OUTPUT/OUTPUT ANCHOR directive syntax tree node.
+  """
+  def __init__(self, filePath: str, lineNumber: int) -> None:
+    super().__init__(filePath, lineNumber)
+    self.expression: str = ''
+    self.doOutputToAnchor: bool = False
+
+
+class TielNodeMacroEnd(TielNode):
+  """The MACRO/END MACRO directive syntax tree node.
+  """
+  def __init__(self, filePath: str, lineNumber: int) -> None:
+    super().__init__(filePath, lineNumber)
+    self.name: str = ''
+    self.pattern: Union[str, Pattern[str]] = ''
+    self.nodes: List[TielNode] = []
+
+
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
 
@@ -217,6 +244,12 @@ _END_IF = _regExpr(r'^end\s*if$')
 _DO = _regExpr(r'^do\s+(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$')
 _END_DO = _regExpr(r'^end\s*do$')
 
+_ANCHOR = _regExpr(r'^anchor(?:\s+(?P<name>[a-zA-Z]\w*))?$')
+_OUTPUT = _regExpr(r'^output\s+(?P<anchor>anchor\s+)?(?P<expr>.*)$')
+
+_MACRO = _regExpr(r'^macro\s+(?P<name>[a-zA-Z]\w*)\s+(?P<pattern>.*)$')
+_END_MACRO = _regExpr(r'^end\s*macro$')
+
 _LINE = _regExpr(r'(line)?\s*(?P<num>\d+)\s+(?P<path>(\'.+\')|(\".+\"))')
 
 
@@ -240,11 +273,11 @@ class TielParser:
     self._currentLine: str = \
       '' if self._matchesEnd() else self._lines[self._currentLineIndex].rstrip()
 
-  def _matchesLine(self, *regExprList: Pattern[str]) -> Optional[Match[str]]:
+  def _matchesLine(self, *patterns: Pattern[str]) -> Optional[Match[str]]:
     if self._matchesEnd():
       raise TielEndError(self._filePath, self._currentLineNumber)
-    for regExpr in regExprList:
-      match = regExpr.match(self._currentLine)
+    for pattern in patterns:
+      match = pattern.match(self._currentLine)
       if match is not None:
         return match
     return None
@@ -317,6 +350,12 @@ class TielParser:
       return self._parseDirectiveIfEnd()
     if dirHead == 'do':
       return self._parseDirectiveDoEnd()
+    if dirHead == 'anchor':
+      return self._parseDirectiveAnchor()
+    if dirHead == 'output':
+      return self._parseDirectiveOutput()
+    if dirHead == 'macro':
+      return self._parseDirectiveMacroEnd()
     if dirHead == 'line' or (dirHead is not None and dirHead.isdecimal()):
       self._evalDirectiveLine()
       return self._parseSingle()
@@ -326,7 +365,7 @@ class TielParser:
     if dirHead is None:
       message = f'empty directive'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
-    elif dirHead in ['else', 'else if', 'end if', 'end do']:
+    elif dirHead in ['else', 'else if', 'end if', 'end do', 'end macro']:
       message = f'misplaced directive <{dirHead}>'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
     else:
@@ -343,10 +382,10 @@ class TielParser:
         return dirHead
     return None
 
-  def _matchDirectiveSyntax(self, regExp: Pattern[str],
+  def _matchDirectiveSyntax(self, pattern: Pattern[str],
                             *groupLists: str) -> Union[str, Tuple[str, ...]]:
     directive = self._matchesLine(_DIR).group('dir').rstrip()
-    match = regExp.match(directive)
+    match = pattern.match(directive)
     if match is None:
       dirHead = type(self)._parseHead(directive)
       message = f'invalid <{dirHead}> directive syntax'
@@ -358,10 +397,10 @@ class TielParser:
     """Parse IMPORT/INCLUDE directives."""
     node = TielNodeImport(self._filePath,
                           self._currentLineNumber)
-    directive, node.includedFilePath \
+    dirHead, node.includedFilePath \
       = self._matchDirectiveSyntax(_IMPORT, 'dir', 'path')
     node.includedFilePath = node.includedFilePath[1:-1]
-    if directive.lower() == 'include':
+    if dirHead.lower() == 'include':
       node.doPrintLines = True
     return node
 
@@ -424,6 +463,33 @@ class TielParser:
     self._matchDirectiveSyntax(_END_DO)
     return node
 
+  def _parseDirectiveAnchor(self) -> TielNodeAnchor:
+    """Parse ANCHOR directives."""
+    node = TielNodeAnchor(self._filePath,
+                          self._currentLineNumber)
+    node.name = self._matchDirectiveSyntax(_ANCHOR, 'name')
+    return node
+
+  def _parseDirectiveOutput(self) -> TielNodeOutput:
+    """Parse OUTPUT/OUTPUT ANCHOR directives."""
+    node = TielNodeOutput(self._filePath,
+                          self._currentLineNumber)
+    node.expression, node.doOutputToAnchor \
+      = self._matchDirectiveSyntax(_OUTPUT, 'expr', 'anchor')
+    node.doOutputToAnchor = node.doOutputToAnchor is not None
+    return node
+
+  def _parseDirectiveMacroEnd(self) -> TielNodeMacroEnd:
+    """Parse MACRO/END MACRO directives."""
+    node = TielNodeMacroEnd(self._filePath,
+                            self._currentLineNumber)
+    node.name, node.pattern \
+      = self._matchDirectiveSyntax(_MACRO, 'name', 'pattern')
+    while not self._matchesDirectiveHead('end macro'):
+      node.nodes.append(self._parseSingle())
+    self._matchDirectiveSyntax(_END_MACRO)
+    return node
+
   def _evalDirectiveLine(self) -> None:
     """Evaluate LINE directive."""
     self._filePath, self._currentLineNumber \
@@ -442,13 +508,15 @@ _BUILTIN_NAMES = [
   '__INDEX__',
 ]
 
+_MACRO_CALL = _regExpr(r'^\s*@\s*(?P<name>[a-zA-Z]\w*)(?P<body>.*)')
+
 
 class TielEvaluator:
   """Preprocessor syntax tree evaluator.
   """
-
   def __init__(self, options: TielOptions):
     self._scope: Dict[str, Any] = {}
+    self._scopeMacros: Dict[str, TielNodeMacroEnd] = {}
     self._options: TielOptions = options
 
   def evalTree(self,
@@ -483,22 +551,48 @@ class TielEvaluator:
                 line: str,
                 filePath: str, lineNumber: int,
                 printFunc: Callable[[str], None]) -> None:
+    if line.lstrip().startswith('@'):
+      self._evalMacroLine(line, filePath, lineNumber, printFunc)
+    else:
+      self._evalRegularLine(line, filePath, lineNumber, printFunc)
+
+  def _evalMacroLine(self,
+                     line: str,
+                     filePath: str, lineNumber: int,
+                     printFunc: Callable[[str], None]) -> None:
+    """Evaluate single-line macro substitutions."""
+    name, body = _MACRO_CALL.match(line).group('name', 'body')
+    macro = self._scopeMacros[name]
+    if macro is None:
+      message = f'macro `{name}` was not previously defined'
+      raise TielEvalError(message, filePath, lineNumber)
+    match = macro.pattern.match(body)
+    if match is None:
+      message = f'macro `{name}` substitution has failed'
+      raise TielEvalError(message, filePath, lineNumber)
+    # Add capture groups to the scope.
+    self._scope = {**self._scope, **match.groupdict()}
+    self._evalNodeList(macro.nodes, printFunc)
+
+  def _evalRegularLine(self,
+                       line: str,
+                       filePath: str, lineNumber: int,
+                       printFunc: Callable[[str], None]) -> None:
     """Evaluate in-line substitutions."""
     # Evaluate expression substitutions.
-    def _line_sub(match: Match[str]) -> str:
+    def _lineSub(match: Match[str]) -> str:
       expression = match['expr']
       return str(self._evalPyExpr(expression, filePath, lineNumber))
-    line = re.sub(r'`(?P<expr>.+)`', _line_sub, line)
-
+    line = re.sub(r'`(?P<expr>.+)`', _lineSub, line)
     # Evaluate <@:> substitutions.
-    def _loop_sub(match: Match[str]) -> str:
+    def _loopSub(match: Match[str]) -> str:
       expression = match['expr']
       index = self._scope.get('__INDEX__')
       if index is None:
         message = '<@:> substitution outside of the <do> loop body'
         raise TielEvalError(message, filePath, lineNumber)
       return str(index * expression)
-    line = re.sub(r'@(?P<expr>:(\s*,)?)', _loop_sub, line)
+    line = re.sub(r'@(?P<expr>:(\s*,)?)', _loopSub, line)
     printFunc(line)
 
   def _evalLineList(self,
@@ -524,12 +618,16 @@ class TielEvaluator:
       return self._evalDirectiveIfEnd(node, printFunc)
     if isinstance(node, TielNodeDoEnd):
       return self._evalDirectiveDoEnd(node, printFunc)
-    node_type = node.__class__.__name__
+    if isinstance(node, TielNodeOutput):
+      return self._evalDirectiveOutput(node, printFunc)
+    if isinstance(node, TielNodeMacroEnd):
+      return self._evalDirectiveMacroEnd(node, printFunc)
+    node_type = type(node).__name__
     raise RuntimeError(f'no evaluator for directive type {node_type}')
 
   @staticmethod
-  def _find_file(filePath: str,
-                 dirPaths: List[str]) -> Optional[str]:
+  def _findFile(filePath: str,
+                dirPaths: List[str]) -> Optional[str]:
     filePath = path.expanduser(filePath)
     if path.exists(filePath):
       return filePath
@@ -545,8 +643,8 @@ class TielEvaluator:
     """Evaluate IMPORT/INCLUDE directive."""
     curDirPath, _ = path.split(node.filePath)
     includedFilePath \
-      = type(self)._find_file(node.includedFilePath,
-                              self._options.includePaths + [curDirPath])
+      = type(self)._findFile(node.includedFilePath,
+                             self._options.includePaths + [curDirPath])
     if includedFilePath is None:
       message = f'`{node.includedFilePath}` was not found in the include paths'
       raise TielFileError(message, node.filePath, node.lineNumber)
@@ -567,7 +665,7 @@ class TielEvaluator:
                         node: TielNodeLet) -> None:
     """Evaluate LET directive."""
     if node.name in self._scope:
-      message = f'name `{node.name}` is already defined.'
+      message = f'name `{node.name}` is already defined'
       raise TielEvalError(message, node.filePath, node.lineNumber)
     if node.name in _BUILTIN_NAMES:
       message = f'builtin name <{node.name}> can not be redefined'
@@ -643,6 +741,28 @@ class TielEvaluator:
     else:
       del self._scope['__INDEX__']
 
+  def _evalDirectiveOutput(self,
+                           node: TielNodeOutput,
+                           printFunc: Callable[[str], None]) -> None:
+    """Evaluate OUTPUT/OUTPUT ANCHOR node."""
+    string = self._evalPyExpr(node.expression,
+                              node.filePath, node.lineNumber)
+    printFunc(string)
+
+  def _evalDirectiveMacroEnd(self,
+                             node: TielNodeMacroEnd,
+                             printFunc: Callable[[str], None]) -> None:
+    """Evaluate MACRO/END MACRO node."""
+    if node.name in self._scopeMacros:
+      message = f'macro `{node.name}` is already defined'
+      raise TielEvalError(message, node.filePath, node.lineNumber)
+    if isinstance(node.pattern, str):
+      try:
+        node.pattern = _regExpr(node.pattern)
+      except re.error as error:
+        message = f'invalid macro pattern `{node.pattern}`'
+        raise TielEvalError(message, node.filePath, node.lineNumber) from error
+    self._scopeMacros[node.name] = node
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
