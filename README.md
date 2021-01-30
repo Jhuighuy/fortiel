@@ -1,4 +1,4 @@
-# fortiel — Fortran preprocessor and metaprogramming engine
+# ♂FORTIEL♂ — Fortran preprocessor and metaprogramming engine
 
 Fortiel (_mixed [Fortran](https://fortran-lang.org/) 
 and [Cockatiel](https://en.wikipedia.org/wiki/Cockatiel)_) 

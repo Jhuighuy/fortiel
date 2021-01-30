@@ -30,10 +30,26 @@
 ! OTHER DEALINGS IN THE SOFTWARE.
 ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> !
 
+#@let __GACHI_ANCHOR__ = '♂ANCHOR♂'
+
+!!
 #@macro let &
-  ^(?P<type>.*)(?:::)?\s*(?P<name>[a-zA-Z]\w*)(?:\s*=\s*(?P<init>.+))$
-#@output anchor f'{type.strip()} :: {name.strip()}'
-#@if init is not None
-#@  output f'{name.strip()} = {init.strip()}'
-#@end if
-#@end macro
+    ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)(?:\s*=\s*(?P<init>.+))$
+  #@channel __GACHI_ANCHOR__
+    `type.strip()` :: `name.strip()`
+  #@if init is not None
+    `name.strip()` = `init.strip()`
+  #@end if
+#@end macro let
+
+!#@macro construct do &
+!    ^(?:(?P<type>.*)::\s*)?(?P<index>[a-zA-Z_]\w*)\s*=\s*(?P<bounds>.*)$
+!  #@if type is not None
+!    #@output 'block'
+!    #@output f'  {type} :: {index}'
+!  #@end if
+!  #@evaluate __BODY__
+!  #@if type is not None
+!    #@output 'end block'
+!  #@end if
+!#@end macro do
