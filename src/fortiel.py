@@ -373,9 +373,10 @@ class TielParser:
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
 
   def _matchesDirectiveHead(self, *dirHeadList: str) -> Optional[str]:
-    self._parseLineContinuation()
-    dirMatch = self._matchesLine(_DIR)
-    if dirMatch is not None:
+    if self._matchesLine(_DIR) is not None:
+      # Parse continuations and rematch.
+      self._parseLineContinuation()
+      dirMatch = self._matchesLine(_DIR)
       directive = dirMatch['dir'].lower()
       dirHead = type(self)._parseHead(directive)
       if dirHead in [head.replace(' ', '') for head in dirHeadList]:
@@ -568,7 +569,7 @@ class TielEvaluator:
       raise TielEvalError(message, filePath, lineNumber)
     match = macro.pattern.match(body)
     if match is None:
-      message = f'macro `{name}` substitution has failed'
+      message = f'macro `{name}` call does not match the macro pattern'
       raise TielEvalError(message, filePath, lineNumber)
     # Add capture groups to the scope.
     self._scope = {**self._scope, **match.groupdict()}
@@ -579,6 +580,10 @@ class TielEvaluator:
                        filePath: str, lineNumber: int,
                        printFunc: Callable[[str], None]) -> None:
     """Evaluate in-line substitutions."""
+    # Skip comment lines (no inline comments for now).
+    if line.lstrip().startswith('!'):
+      printFunc(line)
+      return
     # Evaluate expression substitutions.
     def _lineSub(match: Match[str]) -> str:
       expression = match['expr']
