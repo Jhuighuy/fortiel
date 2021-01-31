@@ -30,26 +30,29 @@
 ! OTHER DEALINGS IN THE SOFTWARE.
 ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> !
 
-#@let __GACHI_ANCHOR__ = '♂ANCHOR♂'
-
 !!
 #@macro let &
-    ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)(?:\s*=\s*(?P<init>.+))$
-  #@channel __GACHI_ANCHOR__
+    ^(?P<type>.*)::\s*(?P<name>[_a-zA-Z]\w*)(?:\s*=\s*(?P<init>.+))$
+  #@channel '__LET__'
     `type.strip()` :: `name.strip()`
   #@if init is not None
     `name.strip()` = `init.strip()`
   #@end if
 #@end macro let
 
-!#@macro construct do &
-!    ^(?:(?P<type>.*)::\s*)?(?P<index>[a-zA-Z_]\w*)\s*=\s*(?P<bounds>.*)$
-!  #@if type is not None
-!    #@output 'block'
-!    #@output f'  {type} :: {index}'
-!  #@end if
-!  #@evaluate __BODY__
-!  #@if type is not None
-!    #@output 'end block'
-!  #@end if
-!#@end macro do
+#@macro construct do &
+    ^(?:(?P<type>.*)::\s*)?(?P<index>[_a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
+  #@if type is not None
+    block
+      `type.strip()` :: `index.strip()`
+  #@end if
+  do `index.strip()` = `bounds.strip()`
+    block
+      #@flush '__LET__'
+      #@flush ''
+    end block
+  end do
+  #@if type is not None
+    end block
+  #@end if
+#@end macro do
