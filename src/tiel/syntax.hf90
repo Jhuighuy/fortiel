@@ -31,28 +31,45 @@
 ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> !
 
 !!
-#@macro let &
-    ^(?P<type>.*)::\s*(?P<name>[_a-zA-Z]\w*)(?:\s*=\s*(?P<init>.+))$
-  #@channel '__LET__'
-    `type.strip()` :: `name.strip()`
-  #@if init is not None
+#@macro let
+  #@pattern ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)$
+    #@channel '__LET__'
+      `type.strip()` :: `name.strip()`
+    #@end channel
+  #@pattern ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)\s*=\s*(?P<init>.+)$
+    #@channel '__LET__'
+      `type.strip()` :: `name.strip()`
+    #@end channel
     `name.strip()` = `init.strip()`
-  #@end if
 #@end macro let
 
-#@macro construct do &
-    ^(?:(?P<type>.*)::\s*)?(?P<index>[_a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
-  #@if type is not None
+!!
+#@macro construct if
+  #pattern ^\((?P<condition>.*)\)\s*then$
+    .. do something
+#section optional repeatable else\if
+  #pattern ^\((?P<condition>.*)\)\s*then$
+    .. do something
+#section optional else
+  #pattern ^$
+    .. do something
+#@end macro if
+
+!!
+#@macro construct do
+  #@pattern ^(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
+    do `index.strip()` = `bounds.strip()`
+      block
+        #@flush '__LET__', ''
+      end block
+    end do
+  #@pattern ^(?P<type>.*)::\s*(?P<index>[_a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
     block
       `type.strip()` :: `index.strip()`
-  #@end if
-  do `index.strip()` = `bounds.strip()`
-    block
-      #@flush '__LET__'
-      #@flush ''
+      do `index.strip()` = `bounds.strip()`
+        block
+          #@flush '__LET__', ''
+        end block
+      end do
     end block
-  end do
-  #@if type is not None
-    end block
-  #@end if
 #@end macro do
