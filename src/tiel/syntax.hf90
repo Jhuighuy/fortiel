@@ -44,32 +44,43 @@
 #@end macro let
 
 !!
-!#@macro construct if
-!  #@pattern ^\((?P<condition>.*)\)\s*then$
-!    .. do something
-!#@section optional repeatable else\if
-!  #@pattern ^\((?P<condition>.*)\)\s*then$
-!    .. do something
-!#@section optional else
-!  #@pattern ^$
-!    .. do something
-!#@end macro if
+#@macro construct if
+#@pattern ^\((?P<condition>.*)\)\s*then$
+  if (`condition.strip()`) then
+    block
+      #@flush '__LET__', ''
+#@section else_if
+#@pattern ^\((?P<condition>.*)\)\s*then$
+    end block
+  else if (`condition.strip()`) then
+    block
+      #@flush '__LET__', ''
+#@section once else
+#@pattern ^$
+    end block
+  else
+    block
+      #@flush '__LET__', ''
+#@finally
+    end block
+  end if
+#@end macro if
 
 !!
 #@macro construct do
-  #@pattern ^(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
+#@pattern ^(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
+  do `index.strip()` = `bounds.strip()`
+    block
+      #@flush '__LET__', ''
+    end block
+  end do
+#@pattern ^(?P<type>.*)::\s*(?P<index>[_a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
+  block
+    `type.strip()` :: `index.strip()`
     do `index.strip()` = `bounds.strip()`
       block
         #@flush '__LET__', ''
       end block
     end do
-  #@pattern ^(?P<type>.*)::\s*(?P<index>[_a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
-    block
-      `type.strip()` :: `index.strip()`
-      do `index.strip()` = `bounds.strip()`
-        block
-          #@flush '__LET__', ''
-        end block
-      end do
-    end block
+  end block
 #@end macro do
