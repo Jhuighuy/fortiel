@@ -289,6 +289,9 @@ _END_CALL = _regExpr(r'^end\s*call(?:\s+(?P<name>[a-zA-Z]\w*))?$')
 
 _LINE = _regExpr(r'(line)?\s*(?P<num>\d+)\s+(?P<path>(\'.+\')|(\".+\"))')
 
+_MISPLACED_HEADS = ['else', 'else if', 'end if', 'end do',
+                    'end channel', 'pattern', 'end macro', 'section', 'end call']
+
 
 class TielParser:
   """Preprocessor syntax tree parser.
@@ -348,6 +351,11 @@ class TielParser:
         dirHead += dirHeadWord2
     return dirHead
 
+  @staticmethod
+  def _inList(string: Optional[str], stringList) -> bool:
+    return string is not None \
+           and string.replace(' ', '') in [string.replace(' ', '') for string in stringList]
+
   def parse(self) -> TielTree:
     """Parse the source lines."""
     tree = TielTree(self._filePath)
@@ -404,8 +412,7 @@ class TielParser:
     if dirHead is None:
       message = f'empty directive'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
-    elif dirHead in ['else', 'else if', 'end'+'if', 'end'+'do',
-                     'end'+'channel', 'pattern', 'end'+'macro', 'section', 'end'+'call']:
+    elif type(self)._inList(dirHead, _MISPLACED_HEADS):
       message = f'misplaced directive <{dirHead}>'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
     else:
@@ -419,7 +426,7 @@ class TielParser:
       dirMatch = self._matchesLine(_DIR)
       directive = dirMatch['dir'].lower()
       dirHead = type(self)._parseHead(directive)
-      if dirHead in [head.replace(' ', '') for head in dirHeadList]:
+      if type(self)._inList(dirHead, dirHeadList):
         return dirHead
     return None
 

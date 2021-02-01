@@ -32,28 +32,28 @@
 
 !!
 #@macro let
-  #@pattern ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)$
-    #@channel '__LET__'
-      `type.strip()` :: `name.strip()`
-    #@end channel
-  #@pattern ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)\s*=\s*(?P<init>.+)$
-    #@channel '__LET__'
-      `type.strip()` :: `name.strip()`
-    #@end channel
-    `name.strip()` = `init.strip()`
+#@pattern ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)$
+#@channel '__LET__'
+  `type.strip()` :: `name.strip()`
+#@end channel
+#@pattern ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)\s*=\s*(?P<init>.+)$
+#@channel '__LET__'
+  `type.strip()` :: `name.strip()`
+#@end channel
+`name.strip()` = `init.strip()`
 #@end macro let
 
 !!
-#@macro construct if
-  #pattern ^\((?P<condition>.*)\)\s*then$
-    .. do something
-#section optional repeatable else\if
-  #pattern ^\((?P<condition>.*)\)\s*then$
-    .. do something
-#section optional else
-  #pattern ^$
-    .. do something
-#@end macro if
+!#@macro construct if
+!  #@pattern ^\((?P<condition>.*)\)\s*then$
+!    .. do something
+!#@section optional repeatable else\if
+!  #@pattern ^\((?P<condition>.*)\)\s*then$
+!    .. do something
+!#@section optional else
+!  #@pattern ^$
+!    .. do something
+!#@end macro if
 
 !!
 #@macro construct do
