@@ -280,14 +280,15 @@ _DIR_HEAD = _regExpr(r'^(?P<word>[^\s]+)(?:\s+(?P<word2>[^\s]+))?')
 _IMPORT = _regExpr(r'^(?P<dir>import|include)\s+'
                    + r'(?P<path>(?:\".+\")|(?:\'.+\')|(?:\<.+\>))$')
 
-_LET = _regExpr(r'^let\s+(?P<name>[a-zA-Z_]\w*)\s*'
-                + r'(?P<args>\((?:\*?\*?[a-zA-Z]\w*(?:\s*,\s*\*?\*?[a-zA-Z]\w*)*)?\s*\))?\s*'
-                + r'=\s*(?P<expr>.*)$')
+_LET = _regExpr(r'^let\s+(?P<name>[_a-zA-Z]\w*)\s*'
+                + r'(?P<arguments>\((?:\*{0,2}[_a-zA-Z]\w*'
+                + r'(?:\s*,\s*\*{0,2}[_a-zA-Z]\w*)*)?\s*\))?\s*'
+                + r'=\s*(?P<expression>.*)$')
 
 _DEL = _regExpr(r'^undef\s+(?P<names>[a-zA-Z_]\w*(?:\s*,\s*[a-zA-Z_]\w*)*)$')
 
-_IF = _regExpr(r'^if\s*(?P<cond>.+)\s*:?$')
-_ELSE_IF = _regExpr(r'^else\s*if\s*(?P<cond>.+)\s*:?$')
+_IF = _regExpr(r'^if\s*(?P<condition>.+)\s*:?$')
+_ELSE_IF = _regExpr(r'^else\s*if\s*(?P<condition>.+)\s*:?$')
 _ELSE = _regExpr(r'^else$')
 _END_IF = _regExpr(r'^end\s*if$')
 
@@ -316,11 +317,8 @@ _MUTATE = _regExpr(r'mutate\s+(?P<pattern>.+)\s+to\s+(?P<replacement>.+)')
 
 _LINE = _regExpr(r'(line)?\s*(?P<num>\d+)\s+(?P<path>(\'.+\')|(\".+\"))')
 
-_MISPLACED_HEADS = ['else', 'else if', 'end if',
-                    'end do',
-                    'end channel',
-                    'section', 'finally', 'pattern', 'end macro',
-                    'end call']
+_MISPLACED_HEADS = ['else', 'else if', 'end if', 'end do', 'end channel',
+                    'section', 'finally', 'pattern', 'end macro', 'end call']
 
 
 class TielParser:
@@ -384,9 +382,9 @@ class TielParser:
     return dirHead
 
   @staticmethod
-  def _inList(string: Optional[str], stringList) -> bool:
-    return string is not None \
-           and string.replace(' ', '') in [string.replace(' ', '') for string in stringList]
+  def _inHeadList(head: Optional[str], headList) -> bool:
+    headList = [head.replace(' ', '') for head in headList]
+    return head is not None and head.replace(' ', '') in headList
 
   def parse(self) -> TielTree:
     """Parse the source lines."""
@@ -444,9 +442,9 @@ class TielParser:
     # either the known directive is misplaced,
     # either the directive is unknown.
     if dirHead is None:
-      message = f'empty directive'
+      message = 'empty directive'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
-    elif type(self)._inList(dirHead, _MISPLACED_HEADS):
+    elif type(self)._inHeadList(dirHead, _MISPLACED_HEADS):
       message = f'misplaced directive <{dirHead}>'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
     else:
@@ -460,12 +458,11 @@ class TielParser:
       dirMatch = self._matchesLine(_DIR)
       directive = dirMatch['dir'].lower()
       dirHead = type(self)._parseHead(directive)
-      if type(self)._inList(dirHead, dirHeadList):
+      if type(self)._inHeadList(dirHead, dirHeadList):
         return dirHead
     return None
 
-  def _matchDirectiveSyntax(self, pattern: Pattern[str],
-                            *groupLists: str) -> Union[str, Tuple[str, ...]]:
+  def _matchDirectiveSyntax(self, pattern: Pattern[str], *groups: str) -> Union[str, Tuple[str, ...]]:
     directive = self._matchesLine(_DIR).group('dir').rstrip()
     match = pattern.match(directive)
     if match is None:
@@ -473,7 +470,7 @@ class TielParser:
       message = f'invalid <{dirHead}> directive syntax'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
     self._advanceLine()
-    return match.group(*groupLists)
+    return match.group(*groups)
 
   def _parseDirectiveImport(self) -> TielNodeImport:
     """Parse IMPORT/INCLUDE directives."""
@@ -493,7 +490,7 @@ class TielParser:
     node = TielNodeLet(self._filePath,
                        self._currentLineNumber)
     node.name, node.arguments, node.expression \
-      = self._matchDirectiveSyntax(_LET, 'name', 'args', 'expr')
+      = self._matchDirectiveSyntax(_LET, 'name', 'arguments', 'expression')
     if node.arguments is not None:
       node.arguments = node.arguments[1:-1].strip()
     return node
@@ -514,14 +511,15 @@ class TielParser:
     # or validating condition expressions here.
     node = TielNodeIfEnd(self._filePath,
                          self._currentLineNumber)
-    node.condition = self._matchDirectiveSyntax(_IF, 'cond')
+    node.condition = self._matchDirectiveSyntax(_IF, 'condition')
     while not self._matchesDirectiveHead('else if', 'else', 'end if'):
       node.thenNodes.append(self._parseSingle())
     if self._matchesDirectiveHead('else if'):
       while not self._matchesDirectiveHead('else', 'end if'):
         elseIfNode = TielNodeElseIf(self._filePath,
                                     self._currentLineNumber)
-        elseIfNode.condition = self._matchDirectiveSyntax(_ELSE_IF, 'cond')
+        elseIfNode.condition \
+          = self._matchDirectiveSyntax(_ELSE_IF, 'condition')
         while not self._matchesDirectiveHead('else if', 'else', 'end if'):
           elseIfNode.nodes.append(self._parseSingle())
         node.elseIfNodes.append(elseIfNode)
@@ -601,25 +599,27 @@ class TielParser:
                                  node: Union[TielNodeMacroEnd, TielNodeSection],
                                  pattern: str) -> List[TielNodePattern]:
     """Parse PATTERN directive list."""
-    END_HEADS = ['section', 'finally', 'end macro']
     patternNodes: List[TielNodePattern] = []
     if pattern is not None:
       patternNode = TielNodePattern(node.filePath,
                                     node.lineNumber)
       patternNode.pattern = pattern
-      while not self._matchesDirectiveHead('pattern', *END_HEADS):
+      while not self._matchesDirectiveHead('pattern', 'section',
+                                           'finally', 'end macro'):
         patternNode.nodes.append(self._parseSingle())
       patternNodes.append(patternNode)
     elif not self._matchesDirectiveHead('pattern'):
       message = 'expected <pattern> directive'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
     if self._matchesDirectiveHead('pattern'):
-      while not self._matchesDirectiveHead(*END_HEADS):
+      while not self._matchesDirectiveHead('section',
+                                           'finally', 'end macro'):
         patternNode = TielNodePattern(self._filePath,
                                       self._currentLineNumber)
         patternNode.pattern = \
           self._matchDirectiveSyntax(_PATTERN, 'pattern')
-        while not self._matchesDirectiveHead('pattern', *END_HEADS):
+        while not self._matchesDirectiveHead('pattern', 'section',
+                                             'finally', 'end macro'):
           patternNode.nodes.append(self._parseSingle())
         patternNodes.append(patternNode)
     return patternNodes
@@ -712,7 +712,7 @@ class TielEvaluator:
       return value
     except Exception as error:
       message = 'Python expression evaluation error: ' \
-                + f'{str(error).replace("<string>", f"expression `{expression}`")}'
+                + f'{str(error).replace("<head>", f"expression `{expression}`")}'
       raise TielEvalError(message, filePath, lineNumber) from error
 
   def _evalLine(self, line: str, filePath: str, lineNumber: int,
@@ -906,7 +906,7 @@ class TielEvaluator:
     channel = self._evalPyExpr(node.expression,
                                node.filePath, node.lineNumber)
     if not isinstance(channel, str):
-      message = f'channel name must to be a string'
+      message = f'channel name must to be a head'
       raise TielEvalError(message, node.filePath, node.lineNumber)
     if channel == '':
       self._evalNodeList(node.nodes, printFunc)
@@ -927,7 +927,7 @@ class TielEvaluator:
       channels = (channels,)
     for channel in channels:
       if not isinstance(channel, str):
-        message = f'channel name must to be a string'
+        message = f'channel name must to be a head'
         raise TielEvalError(message, node.filePath, node.lineNumber)
       channelLines = self._channeledLines.get(channel)
       if channelLines is not None:
