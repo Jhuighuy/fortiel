@@ -66,11 +66,6 @@
   end if
 #@end macro if
 
-#@mutate ^\s*@\s*if\b to #@call construct if
-#@mutate ^\s*@\s*else\s*if\b to #@section else_if
-#@mutate ^\s*@\s*else\b to #@section else
-#@mutate ^\s*@\s*end\s*if\b to #@end call if
-
 !!
 #@macro construct do
 #@pattern ^(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
@@ -90,5 +85,7 @@
   end block
 #@end macro do
 
-#@mutate ^\s*@\s*do\b to #@call construct do
-#@mutate ^\s*@\s*end\s*do\b to #@end call do
+!!
+#@macro construct for
+#@pattern ^
+#@end macro for
