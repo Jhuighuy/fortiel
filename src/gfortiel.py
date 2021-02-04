@@ -107,8 +107,8 @@ def gfortiel_main() -> None:
       = f'gfortran {" ".join(otherArgs)} {" ".join(outputFilePaths)}'
     exitCode |= os.system(compilerCommand)
   # Delete the generated preprocessed sources and exit.
-  for outputFilePath in outputFilePaths:
-    os.remove(outputFilePath)
+  # for outputFilePath in outputFilePaths:
+  #   os.remove(outputFilePath)
   sys.exit(exitCode)
 
 
