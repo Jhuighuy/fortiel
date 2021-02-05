@@ -41,7 +41,7 @@
   `type.strip()` :: `name.strip()`
 #@end channel
 `name.strip()` = `init.strip()`
-#@end macro let
+#@end macro
 
 !!
 #@macro construct if
@@ -64,16 +64,18 @@
 #@finally
     end block
   end if
-#@end macro if
+#@end macro
 
 !!
 #@macro construct do
+#@pattern ^\s*$
+  do
+    block
+      #@flush '__LET__', ''
 #@pattern ^(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
   do `index.strip()` = `bounds.strip()`
     block
       #@flush '__LET__', ''
-    end block
-  end do
 #@pattern ^(?P<type>.*)::\s*(?P<index>[_a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
   block
     `type.strip()` :: `index.strip()`
@@ -81,11 +83,12 @@
       block
         #@flush '__LET__', ''
       end block
+#@finally
     end do
   end block
-#@end macro do
+#@end macro
 
 !!
 #@macro construct for
 #@pattern ^
-#@end macro for
+#@end macro
