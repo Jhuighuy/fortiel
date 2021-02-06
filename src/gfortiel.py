@@ -49,7 +49,7 @@ _EXIT_SUCCESS = 0
 _EXIT_ERROR = 1
 
 _FORTRAN_EXT = [
-  ".f", ".for",
+  #".f", ".for",
   ".f90", ".f03", ".f08"
 ]
 
@@ -105,6 +105,7 @@ def gfortiel_main() -> None:
   if exitCode == _EXIT_SUCCESS:
     compilerCommand \
       = f'gfortran {" ".join(otherArgs)} {" ".join(outputFilePaths)}'
+    print(compilerCommand)
     exitCode |= os.system(compilerCommand)
   # Delete the generated preprocessed sources and exit.
   # for outputFilePath in outputFilePaths:

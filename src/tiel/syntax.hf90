@@ -31,61 +31,27 @@
 ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> !
 
 !!
-#@macro let
-#@pattern ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)$
-#@channel '__LET__'
-  `type.strip()` :: `name.strip()`
-#@end channel
-#@pattern ^(?P<type>.*)::\s*(?P<name>[a-zA-Z]\w*)\s*=\s*(?P<init>.+)$
-#@channel '__LET__'
-  `type.strip()` :: `name.strip()`
-#@end channel
-`name.strip()` = `init.strip()`
-#@end macro
-
-!!
 #@macro construct if
 #@pattern ^\((?P<condition>.*)\)\s*then$
-  if (`condition.strip()`) then
-    block
-      #@flush '__LET__', ''
+if (`condition.strip()`) then; block
 #@section else_if
 #@pattern ^\((?P<condition>.*)\)\s*then$
-    end block
-  else if (`condition.strip()`) then
-    block
-      #@flush '__LET__', ''
+end block; else if (`condition.strip()`) then; block
 #@section once else
-#@pattern ^$
-    end block
-  else
-    block
-      #@flush '__LET__', ''
+#@pattern ^\s*$
+end block; else; block
 #@finally
-    end block
-  end if
+end block; end if
 #@end macro
 
 !!
 #@macro construct do
 #@pattern ^\s*$
-  do
-    block
-      #@flush '__LET__', ''
+do; block
 #@pattern ^(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
-  do `index.strip()` = `bounds.strip()`
-    block
-      #@flush '__LET__', ''
-#@pattern ^(?P<type>.*)::\s*(?P<index>[_a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
-  block
-    `type.strip()` :: `index.strip()`
-    do `index.strip()` = `bounds.strip()`
-      block
-        #@flush '__LET__', ''
-      end block
+do `index.strip()` = `bounds.strip()`; block
 #@finally
-    end do
-  end block
+end block; end do
 #@end macro
 
 !!
