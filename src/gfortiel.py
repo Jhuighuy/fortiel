@@ -38,7 +38,7 @@ import os
 import glob
 import tempfile
 from typing import List, Tuple
-from fortiel import TielError, tiel_preprocess
+from fortiel import tiel_preprocess, TielError
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -60,15 +60,16 @@ def _gfortielParseArguments() -> Tuple[List[str], List[str]]:
   filePaths: List[str] = []
   for arg in sys.argv[1:]:
     isSourceFilePath = \
-      not (arg.startswith("-")
-           or (len(otherArgs) > 0 and otherArgs[-1] == "-o"))
+      not arg.startswith("-") \
+           and (len(otherArgs) == 0 or otherArgs[-1] != "-o")
     if isSourceFilePath:
       ext = os.path.splitext(arg)[1]
       isSourceFilePath = ext.lower() in _FORTRAN_EXT
     # Append the argument or the file path.
     if isSourceFilePath:
-      matchedPaths = glob.glob(arg)
-      filePaths += matchedPaths
+      #matchedPaths = glob.glob(arg)
+      #filePaths += matchedPaths
+      filePaths.append(arg)
     else:
       otherArgs.append(arg)
   return otherArgs, filePaths
@@ -84,7 +85,8 @@ def _gfortielPreprocess(filePath: str,
     lineNumber, message = error.lineNumber, error.message
     gfortran_message \
       = f'{filePath}:{lineNumber}:{1}:\n\n\nFatal Error: {message}'
-    print(gfortran_message, file=sys.stderr, flush=True)
+    print(gfortran_message, file=sys.stderr)
+    sys.stderr.flush()
     return _EXIT_ERROR
 
 
@@ -105,11 +107,11 @@ def gfortiel_main() -> None:
   if exitCode == _EXIT_SUCCESS:
     compilerCommand \
       = f'gfortran {" ".join(otherArgs)} {" ".join(outputFilePaths)}'
-    print(compilerCommand)
-    exitCode |= os.system(compilerCommand)
+    exitCode = os.system(compilerCommand)
+    sys.stderr.flush()
   # Delete the generated preprocessed sources and exit.
-  # for outputFilePath in outputFilePaths:
-  #   os.remove(outputFilePath)
+  for outputFilePath in outputFilePaths:
+    os.remove(outputFilePath)
   sys.exit(exitCode)
 
 
