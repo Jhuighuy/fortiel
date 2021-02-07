@@ -49,7 +49,7 @@ _EXIT_SUCCESS = 0
 _EXIT_ERROR = 1
 
 _FORTRAN_EXT = [
-  #".f", ".for",
+  ".f", ".for",
   ".f90", ".f03", ".f08"
 ]
 
@@ -67,9 +67,11 @@ def _gfortielParseArguments() -> Tuple[List[str], List[str]]:
       isSourceFilePath = ext.lower() in _FORTRAN_EXT
     # Append the argument or the file path.
     if isSourceFilePath:
-      #matchedPaths = glob.glob(arg)
-      #filePaths += matchedPaths
-      filePaths.append(arg)
+      matchedPaths = glob.glob(arg)
+      if matchedPaths:
+        filePaths += matchedPaths
+      else:
+        filePaths.append(arg)
     else:
       otherArgs.append(arg)
   return otherArgs, filePaths
@@ -83,17 +85,14 @@ def _gfortielPreprocess(filePath: str,
     return _EXIT_SUCCESS
   except TielError as error:
     lineNumber, message = error.lineNumber, error.message
-    gfortran_message \
+    errorMessage \
       = f'{filePath}:{lineNumber}:{1}:\n\n\nFatal Error: {message}'
-    print(gfortran_message, file=sys.stderr)
-    sys.stderr.flush()
+    print(errorMessage, file=sys.stderr, flush=True)
     return _EXIT_ERROR
 
 
 def gfortiel_main() -> None:
-  """
-  GNU Fortiel compiler entry point.
-  """
+  """GNU Fortiel compiler entry point."""
   otherArgs, filePaths = _gfortielParseArguments()
   # Preprocess the sources.
   exitCode = 0
