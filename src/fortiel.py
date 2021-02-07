@@ -145,8 +145,7 @@ _END_IF_SYNTAX = _regExpr(r'^end\s*if$')
 _DO_SYNTAX = _regExpr(r'^do\s+(?P<index>[a-zA-Z_]\w*)\s*=\s*(?P<bounds>.*)\s*:?$')
 _END_DO_SYNTAX = _regExpr(r'^end\s*do$')
 
-_MACRO_SYNTAX = _regExpr(r'^macro\s+(?P<construct>construct\s+)?'
-                         + r'(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>\^.*\$))?$')
+_MACRO_SYNTAX = _regExpr(r'^macro\s+(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>\^.*\$))?$')
 _PATTERN_SYNTAX = _regExpr(r'^pattern\s+(?P<pattern>\^.*\$)$')
 _SECTION_SYNTAX = _regExpr(r'^section\s+(?P<once>once\s+)?'
                            + r'(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>.*))?$')
@@ -156,6 +155,7 @@ _END_MACRO_SYNTAX = _regExpr(r'^end\s*macro$')
 _CALL_SYNTAX = _regExpr(r'^(?P<spaces>\s*)'
                         + r'@(?P<name>(?:end\s*|else\s*)?[a-zA-Z]\w*)\b'
                         + r'(?P<argument>[^!]*)(\s*!.*)?$')
+
 
 _MISPLACED_HEADS \
   = [_makeName(head)
@@ -223,7 +223,7 @@ class TielNodeElseIf(TielNode):
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.condition: str = ''
-    self.nodes: List[TielNode] = []
+    self.branchNodes: List[TielNode] = []
 
 
 class TielNodeDoEnd(TielNode):
@@ -232,7 +232,7 @@ class TielNodeDoEnd(TielNode):
     super().__init__(filePath, lineNumber)
     self.indexName: str = ''
     self.bounds: str = ''
-    self.nodes: List[TielNode] = []
+    self.loopNodes: List[TielNode] = []
 
 
 class TielNodeMacroEnd(TielNode):
@@ -240,10 +240,14 @@ class TielNodeMacroEnd(TielNode):
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.name: str = ''
-    self.construct: bool = False
     self.patternNodes: List[TielNodePattern] = []
     self.sectionNodes: List[TielNodeSection] = []
     self.finallyNodes: List[TielNode] = []
+
+  def isConstruct(self) -> bool:
+    """Is current macro a construct."""
+    return len(self.sectionNodes) > 0 \
+           or len(self.finallyNodes) > 0
 
   def sectionNames(self) -> List[str]:
     """Get a list of the section names."""
@@ -264,7 +268,7 @@ class TielNodePattern(TielNode):
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.pattern: Union[str, Pattern[str]] = ''
-    self.nodes: List[TielNode] = []
+    self.matchNodes: List[TielNode] = []
 
 
 class TielNodeCallSegment(TielNode):
@@ -283,9 +287,8 @@ class TielNodeCall(TielNode):
     self.spaces: str = node.spaces
     self.name: str = node.name
     self.argument: str = node.argument
-    self.construct: bool = False
-    self.nodes: List[TielNode] = []
-    self.sectionNodes: List[TielNodeCallSection] = []
+    self.capturedNodes: List[TielNode] = []
+    self.callSectionNodes: List[TielNodeCallSection] = []
 
 
 class TielNodeCallSection(TielNode):
@@ -294,7 +297,7 @@ class TielNodeCallSection(TielNode):
     super().__init__(node.filePath, node.lineNumber)
     self.name: str = node.name
     self.argument: str = node.argument
-    self.nodes: List[TielNode] = []
+    self.capturedNodes: List[TielNode] = []
 
 
 class TielParser:
@@ -487,7 +490,7 @@ class TielParser:
         elseIfNode.condition \
           = self._matchDirectiveSyntax(_ELSE_IF_SYNTAX, 'condition')
         while not self._matchesDirectiveHead('else if', 'else', 'end if'):
-          elseIfNode.nodes.append(self._parseStatement())
+          elseIfNode.branchNodes.append(self._parseStatement())
         node.elseIfNodes.append(elseIfNode)
     if self._matchesDirectiveHead('else'):
       self._matchDirectiveSyntax(_ELSE_SYNTAX)
@@ -505,7 +508,7 @@ class TielParser:
     node.indexName, node.bounds \
       = self._matchDirectiveSyntax(_DO_SYNTAX, 'index', 'bounds')
     while not self._matchesDirectiveHead('end do'):
-      node.nodes.append(self._parseStatement())
+      node.loopNodes.append(self._parseStatement())
     self._matchDirectiveSyntax(_END_DO_SYNTAX)
     return node
 
@@ -513,30 +516,27 @@ class TielParser:
     """Parse MACRO/END MACRO directive."""
     node = TielNodeMacroEnd(self._filePath,
                             self._currentLineNumber)
-    node.name, node.construct, pattern \
-      = self._matchDirectiveSyntax(_MACRO_SYNTAX,
-                                   'name', 'construct', 'pattern')
+    node.name, pattern \
+      = self._matchDirectiveSyntax(_MACRO_SYNTAX, 'name', 'pattern')
     node.name = _makeName(node.name)
-    node.construct = node.construct is not None
     node.patternNodes \
       = self._parseDirectivePatternList(node, pattern)
-    if node.construct:
-      if self._matchesDirectiveHead('section'):
-        while not self._matchesDirectiveHead('finally', 'end macro'):
-          sectionNode = TielNodeSection(self._filePath,
-                                        self._currentLineNumber)
-          sectionNode.name, sectionNode.once, pattern \
-            = self._matchDirectiveSyntax(_SECTION_SYNTAX,
-                                         'name', 'once', 'pattern')
-          sectionNode.name = _makeName(sectionNode.name)
-          sectionNode.once = sectionNode.once is not None
-          sectionNode.patternNodes \
-            = self._parseDirectivePatternList(sectionNode, pattern)
-          node.sectionNodes.append(sectionNode)
-      if self._matchesDirectiveHead('finally'):
-        self._matchDirectiveSyntax(_FINALLY_SYNTAX)
-        while not self._matchesDirectiveHead('end macro'):
-          node.finallyNodes.append(self._parseStatement())
+    if self._matchesDirectiveHead('section'):
+      while not self._matchesDirectiveHead('finally', 'end macro'):
+        sectionNode = TielNodeSection(self._filePath,
+                                      self._currentLineNumber)
+        sectionNode.name, sectionNode.once, pattern \
+          = self._matchDirectiveSyntax(_SECTION_SYNTAX,
+                                       'name', 'once', 'pattern')
+        sectionNode.name = _makeName(sectionNode.name)
+        sectionNode.once = sectionNode.once is not None
+        sectionNode.patternNodes \
+          = self._parseDirectivePatternList(sectionNode, pattern)
+        node.sectionNodes.append(sectionNode)
+    if self._matchesDirectiveHead('finally'):
+      self._matchDirectiveSyntax(_FINALLY_SYNTAX)
+      while not self._matchesDirectiveHead('end macro'):
+        node.finallyNodes.append(self._parseStatement())
     self._matchDirectiveSyntax(_END_MACRO_SYNTAX)
     return node
 
@@ -551,7 +551,7 @@ class TielParser:
       patternNode.pattern = pattern
       while not self._matchesDirectiveHead('pattern', 'section',
                                            'finally', 'end macro'):
-        patternNode.nodes.append(self._parseStatement())
+        patternNode.matchNodes.append(self._parseStatement())
       patternNodes.append(patternNode)
     elif not self._matchesDirectiveHead('pattern'):
       message = 'expected <pattern> directive'
@@ -565,16 +565,18 @@ class TielParser:
           = self._matchDirectiveSyntax(_PATTERN_SYNTAX, 'pattern')
         while not self._matchesDirectiveHead('pattern', 'section',
                                              'finally', 'end macro'):
-          patternNode.nodes.append(self._parseStatement())
+          patternNode.matchNodes.append(self._parseStatement())
         patternNodes.append(patternNode)
     # Compile the patterns.
     for patternNode in patternNodes:
       try:
-        patternNode.pattern = _regExpr(patternNode.pattern)
+        pattern = _regExpr(patternNode.pattern)
       except re.error as error:
         message = f'invalid pattern regular expression `{patternNode.pattern}`'
         raise TielSyntaxError(
           message, patternNode.filePath, patternNode.lineNumber) from error
+      else:
+        patternNode.pattern = pattern
     return patternNodes
 
   def _parseDirectiveCall(self) -> TielNodeCallSegment:
@@ -616,7 +618,7 @@ class TielExecutor:
   """Fortiel syntax tree executor."""
   def __init__(self, options: TielOptions):
     self._scope: Dict[str, Any] = {}
-    self._scopeMacros: Dict[str, TielNodeMacroEnd] = {}
+    self._macros: Dict[str, TielNodeMacroEnd] = {}
     self._options: TielOptions = options
 
   def execTree(self, tree: TielTree, printer: TielPrinter) -> None:
@@ -625,7 +627,7 @@ class TielExecutor:
     self._execNodeList(tree.rootNodes, printer)
 
   def _execNodeList(self, nodes: List[TielNode], printer: TielPrinter) -> None:
-    """Execute the syntax tree node or a list of nodes."""
+    """Execute the syntax tree node or a list of loopNodes."""
     # @TODO refactor me!
     nodes = list(nodes)
     while len(nodes) != 0:
@@ -644,13 +646,12 @@ class TielExecutor:
                    node: TielNodeCallSegment,
                    restNodes: List[TielNode]) -> Tuple[TielNodeCall, List[TielNode]]:
     # @TODO refactor me!
-    macroNode = self._scopeMacros.get(node.name)
+    macroNode = self._macros.get(node.name)
     if macroNode is None:
       message = f'macro `{node.name}` was not previously defined'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
     node = TielNodeCall(node)
-    node.construct = macroNode.construct
-    if node.construct:
+    if macroNode.isConstruct():
       while len(restNodes) != 0:
         nextNode = restNodes.pop(0)
         if isinstance(nextNode, TielNodeCallSegment):
@@ -659,15 +660,15 @@ class TielExecutor:
             break
           if nextNode.name in macroNode.sectionNames():
             nextNode = TielNodeCallSection(nextNode)
-            node.sectionNodes.append(nextNode)
+            node.callSectionNodes.append(nextNode)
             continue
           # Resolve the scoped call.
           nextNode, restNodes = self._resolveCall(nextNode, restNodes)
         # Append the current node to the most recent section of the call node.
-        if len(node.sectionNodes) != 0:
-          node.sectionNodes[-1].nodes.append(nextNode)
+        if len(node.callSectionNodes) != 0:
+          node.callSectionNodes[-1].capturedNodes.append(nextNode)
         else:
-          node.nodes.append(nextNode)
+          node.capturedNodes.append(nextNode)
       else:
         raise RuntimeError('huinya')
     return node, restNodes
@@ -696,7 +697,7 @@ class TielExecutor:
                 printer: TielPrinter) -> None:
     """Execute in-line substitutions."""
     # Skip comment lines
-    # (no inline comments for now).
+    # (TODO: no inline comments for now).
     if line.lstrip().startswith('!'):
       printer(line)
       return
@@ -749,9 +750,8 @@ class TielExecutor:
   def _execNodeUse(self, node: TielNodeUse) -> None:
     """Execute USE node."""
     nodeDirPath = path.dirname(node.filePath)
-    usedFilePath \
-      = _findFile(node.usedFilePath,
-                  self._options.includePaths + [nodeDirPath])
+    usedFilePath = _findFile(node.usedFilePath,
+                             self._options.includePaths + [nodeDirPath])
     if usedFilePath is None:
       message = f'`{node.usedFilePath}` was not found in the include paths'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
@@ -795,9 +795,9 @@ class TielExecutor:
         message = 'functional <let> arguments must be unique'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
       expression = f'lambda {node.arguments}: {node.expression}'
-      func = self._evalPyExpr(expression,
-                              node.filePath, node.lineNumber)
-      self._scope[node.name] = func
+      function = self._evalPyExpr(expression,
+                                  node.filePath, node.lineNumber)
+      self._scope[node.name] = function
 
   def _evalNodeDel(self, node: TielNodeDel) -> None:
     """Execute DEL node."""
@@ -821,7 +821,7 @@ class TielExecutor:
       for elseIfNode in node.elseIfNodes:
         if self._evalPyExpr(elseIfNode.condition,
                             elseIfNode.filePath, elseIfNode.lineNumber):
-          self._execNodeList(elseIfNode.nodes, printer)
+          self._execNodeList(elseIfNode.branchNodes, printer)
           break
       else:
         # Execute ELSE branch.
@@ -847,18 +847,17 @@ class TielExecutor:
       # Execute loop body.
       self._scope[node.indexName] = index
       self._scope['__INDEX__'] = index
-      self._execNodeList(node.nodes, printer)
+      self._execNodeList(node.loopNodes, printer)
     del self._scope[node.indexName]
     # Restore previous index value.
     self._scope['__INDEX__'] = prevIndex
 
   def _execNodeMacroEnd(self, node: TielNodeMacroEnd) -> None:
     """Execute MACRO/END MACRO node."""
-    if node.name in self._scopeMacros:
+    if node.name in self._macros:
       message = f'macro `{node.name}` is already defined'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
-    # Compile section patterns and check section names.
-    if node.construct:
+    if len(node.sectionNodes) != 0:
       sectionNames = node.sectionNames()
       if node.name in sectionNames:
         message = 'section name cannot be the same with macro name'
@@ -866,19 +865,12 @@ class TielExecutor:
       if len(sectionNames) != len(set(sectionNames)):
         message = 'section names must be unique'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
-    self._scopeMacros[node.name] = node
+    # Add macro to the scope.
+    self._macros[node.name] = node
 
   def _execNodeCallEnd(self, node: TielNodeCall, printer: TielPrinter) -> None:
     """Execute CALL/END CALL node."""
-    macroNode = self._scopeMacros[node.name]
-    if node.construct != macroNode.construct:
-      if macroNode.construct:
-        message = f'macro construct `{node.name}` ' \
-                  + 'must be called with call construct syntax'
-      else:
-        message = f'non-construct macro `{node.name}` ' \
-                  + 'must be called with call syntax, not call construct'
-      raise TielRuntimeError(message, node.filePath, node.lineNumber)
+    macroNode = self._macros[node.name]
     # Use a special print function
     # in order to keep indentations from the original source.
     # ( Note that we have to keep line markers unindented. )
@@ -886,16 +878,27 @@ class TielExecutor:
       printer(line if line.startswith('#') else node.spaces + line)
     self._execNodePatternList(node, macroNode, _spacedPrinter)
     # Match and evaluate macro sections.
-    if node.construct:
-      self._execNodeList(node.nodes, printer)
-      for sectionNode in node.sectionNodes:
-        # TODO: WTF?
-        macroSectionNode \
-          = next((x for x in macroNode.sectionNodes
-                  if x.name.lower() == sectionNode.name), None)
-        self._execNodePatternList(sectionNode,
-                                  macroSectionNode, _spacedPrinter)
-        self._execNodeList(sectionNode.nodes, printer)
+    if macroNode.isConstruct():
+      self._execNodeList(node.capturedNodes, printer)
+      sectionIter = iter(macroNode.sectionNodes)
+      sectionNode = next(sectionIter, None)
+      for callSectionNode in node.callSectionNodes:
+        # Find a section node match.
+        while sectionNode is not None \
+            and sectionNode.name != callSectionNode.name:
+          sectionNode = next(sectionIter, None)
+        if sectionNode is None:
+          message = f'unexpected call section `{callSectionNode.name}`'
+          raise TielRuntimeError(
+            message, callSectionNode.filePath, callSectionNode.lineNumber)
+        # Execute the section.
+        self._execNodePatternList(callSectionNode,
+                                  sectionNode, _spacedPrinter)
+        self._execNodeList(callSectionNode.capturedNodes, printer)
+        # Advance a section for sections with 'once' attribute.
+        if sectionNode.once:
+          sectionNode = next(sectionIter, None)
+      # Execute finally section.
       self._execNodeList(macroNode.finallyNodes, _spacedPrinter)
 
   def _execNodePatternList(self,
@@ -908,7 +911,7 @@ class TielExecutor:
       match = patternNode.pattern.match(node.argument)
       if match is not None:
         self._scope = {**self._scope, **match.groupdict()}
-        self._execNodeList(patternNode.nodes, printer)
+        self._execNodeList(patternNode.matchNodes, printer)
         break
     else:
       message = f'macro `{macroNode.name}` ' \

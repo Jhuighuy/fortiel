@@ -31,7 +31,7 @@
 ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> !
 
 !!
-#@macro construct if
+#@macro if
 #@pattern ^\((?P<condition>.*)\)\s*then$
 if (`condition.strip()`) then; block
 #@section elseif
@@ -45,7 +45,7 @@ end block; end if
 #@end macro
 
 !!
-#@macro construct do
+#@macro do
 #@pattern ^\s*$
 do; block
 #@pattern ^(?P<index>[a-zA-Z]\w*)\s*=\s*(?P<bounds>.*)$
@@ -55,6 +55,6 @@ end block; end do
 #@end macro
 
 !!
-#@macro construct for
+#@macro for
 #@pattern ^$
 #@end macro
