@@ -41,7 +41,7 @@ import re
 import argparse
 from os import path
 
-from typing import (List, Dict, Tuple, Any,
+from typing import (cast, List, Dict, Tuple, Any,
                     Union, Optional, Callable, Pattern, Match)
 
 
@@ -628,50 +628,49 @@ class TielExecutor:
 
   def _execNodeList(self, nodes: List[TielNode], printer: TielPrinter) -> None:
     """Execute the syntax tree node or a list of loopNodes."""
-    # @TODO refactor me!
-    nodes = list(nodes)
-    while len(nodes) != 0:
-      # Resolve the call segment and execute the cell.
-      node = nodes.pop(0)
-      if isinstance(node, TielNodeCallSegment):
-        node, nodes = self._resolveCall(node, nodes)
-        self._execNodeCallEnd(node, printer)
-      # Execute the node.
-      elif isinstance(node, TielNodeLineList):
-        self._execLineList(node, printer)
-      else:
-        self._execNode(node, printer)
+    index = 0
+    while index < len(nodes):
+      if isinstance(nodes[index], TielNodeCallSegment):
+        self._resolveCall(index, nodes)
+      self._execNode(nodes[index], printer)
+      index += 1
 
-  def _resolveCall(self,
-                   node: TielNodeCallSegment,
-                   restNodes: List[TielNode]) -> Tuple[TielNodeCall, List[TielNode]]:
+  def _resolveCall(self, index: int, nodes: List[TielNode]) -> None:
     # @TODO refactor me!
+    node = cast(TielNodeCallSegment, nodes[index])
     macroNode = self._macros.get(node.name)
     if macroNode is None:
       message = f'macro `{node.name}` was not previously defined'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
-    node = TielNodeCall(node)
+    # Convert current node to call node
+    # and replace it in the node list.
+    node = nodes[index] = TielNodeCall(node)
     if macroNode.isConstruct():
-      while len(restNodes) != 0:
-        nextNode = restNodes.pop(0)
+      # Pop and process nodes until the
+      # end of macro construct call is reached.
+      nextIndex = index + 1
+      endName = 'end' + node.name
+      while True:
+        nextNode = nodes.pop(nextIndex)
         if isinstance(nextNode, TielNodeCallSegment):
-          # Check if we reached end of call or a call section.
-          if nextNode.name == 'end' + node.name:
+          if nextNode.name == endName:
             break
           if nextNode.name in macroNode.sectionNames():
-            nextNode = TielNodeCallSection(nextNode)
-            node.callSectionNodes.append(nextNode)
+            callSectionNode = TielNodeCallSection(nextNode)
+            node.callSectionNodes.append(callSectionNode)
             continue
           # Resolve the scoped call.
-          nextNode, restNodes = self._resolveCall(nextNode, restNodes)
-        # Append the current node to the most recent section of the call node.
+          nodes.insert(nextIndex, nextNode)
+          self._resolveCall(nextIndex, nodes)
+          nextNode = nodes.pop(nextIndex)
+        # Append the current node
+        # to the most recent section of the call node.
         if len(node.callSectionNodes) != 0:
           node.callSectionNodes[-1].capturedNodes.append(nextNode)
         else:
           node.capturedNodes.append(nextNode)
       else:
         raise RuntimeError('huinya')
-    return node, restNodes
 
   def _evalPyExpr(self,
                   expression: str, filePath: str, lineNumber: int) -> Any:
@@ -683,6 +682,28 @@ class TielExecutor:
       message = 'Python expression evaluation error: ' \
                 + f'{str(error).replace("<head>", f"expression `{expression}`")}'
       raise TielRuntimeError(message, filePath, lineNumber) from error
+
+  def _execNode(self, node: TielNode, printer: TielPrinter):
+    """Execute a node."""
+    if isinstance(node, TielNodeUse):
+      return self._execNodeUse(node)
+    if isinstance(node, TielNodeLet):
+      return self._execNodeLet(node)
+    if isinstance(node, TielNodeDel):
+      return self._evalNodeDel(node)
+    if isinstance(node, TielNodeIfEnd):
+      return self._execNodeIfEnd(node, printer)
+    if isinstance(node, TielNodeDoEnd):
+      return self._execNodeDoEnd(node, printer)
+    if isinstance(node, TielNodeMacroEnd):
+      return self._execNodeMacroEnd(node)
+    if isinstance(node, TielNodeCall):
+      return self._execNodeCallEnd(node, printer)
+    if isinstance(node, TielNodeLineList):
+      return self._execLineList(node, printer)
+    nodeType = type(node).__name__
+    raise RuntimeError('internal error: '
+                       + f'no evaluator for directive type {nodeType}')
 
   def _execLineList(self,
                     node: TielNodeLineList,
@@ -726,26 +747,6 @@ class TielExecutor:
     line = re.sub(_LOOP_SUB, _loopSubReplace, line)
     # Output the processed line.
     printer(line)
-
-  def _execNode(self, node: TielNode, printer: TielPrinter):
-    """Execute a node."""
-    if isinstance(node, TielNodeUse):
-      return self._execNodeUse(node)
-    if isinstance(node, TielNodeLet):
-      return self._execNodeLet(node)
-    if isinstance(node, TielNodeDel):
-      return self._evalNodeDel(node)
-    if isinstance(node, TielNodeIfEnd):
-      return self._execNodeIfEnd(node, printer)
-    if isinstance(node, TielNodeDoEnd):
-      return self._execNodeDoEnd(node, printer)
-    if isinstance(node, TielNodeMacroEnd):
-      return self._execNodeMacroEnd(node)
-    if isinstance(node, TielNodeCall):
-      return self._execNodeCallEnd(node, printer)
-    nodeType = type(node).__name__
-    raise RuntimeError('internal error: '
-                       + f'no evaluator for directive type {nodeType}')
 
   def _execNodeUse(self, node: TielNodeUse) -> None:
     """Execute USE node."""
