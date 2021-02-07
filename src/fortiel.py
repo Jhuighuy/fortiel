@@ -146,8 +146,8 @@ _DO_SYNTAX = _regExpr(r'^do\s+(?P<index>[a-zA-Z_]\w*)\s*=\s*(?P<bounds>.*)\s*:?$
 _END_DO_SYNTAX = _regExpr(r'^end\s*do$')
 
 _MACRO_SYNTAX = _regExpr(r'^macro\s+(?P<construct>construct\s+)?'
-                         + r'(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>.*))?$')
-_PATTERN_SYNTAX = _regExpr(r'^pattern\s+(?P<pattern>.*)$')
+                         + r'(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>\^.*\$))?$')
+_PATTERN_SYNTAX = _regExpr(r'^pattern\s+(?P<pattern>\^.*\$)$')
 _SECTION_SYNTAX = _regExpr(r'^section\s+(?P<once>once\s+)?'
                            + r'(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>.*))?$')
 _FINALLY_SYNTAX = _regExpr(r'^finally$')

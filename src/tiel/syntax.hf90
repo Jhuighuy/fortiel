@@ -34,7 +34,7 @@
 #@macro construct if
 #@pattern ^\((?P<condition>.*)\)\s*then$
 if (`condition.strip()`) then; block
-#@section else_if
+#@section elseif
 #@pattern ^\((?P<condition>.*)\)\s*then$
 end block; else if (`condition.strip()`) then; block
 #@section once else
@@ -56,5 +56,5 @@ end block; end do
 
 !!
 #@macro construct for
-#@pattern ^
+#@pattern ^$
 #@end macro
