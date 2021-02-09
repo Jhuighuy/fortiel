@@ -56,7 +56,7 @@ def _regExpr(pattern: str) -> Pattern[str]:
 
 def _makeName(name: str) -> str:
   """Compile name to ..."""
-  return re.sub('\s*', '', name.lower())
+  return re.sub(r'\s*', '', name.lower())
 
 
 def _findFile(filePath: str, dirPaths: List[str]) -> Optional[str]:
