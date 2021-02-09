@@ -41,7 +41,7 @@ import re
 import argparse
 from os import path
 
-from typing import (cast, List, Dict, Tuple, Any,
+from typing import (cast, List, Set, Dict, Tuple, Any,
                     Union, Optional, Callable, Pattern, Match)
 
 
@@ -63,11 +63,11 @@ def _findFile(filePath: str, dirPaths: List[str]) -> Optional[str]:
   """Find file in the directory list."""
   filePath = path.expanduser(filePath)
   if path.exists(filePath):
-    return filePath
+    return path.abspath(filePath)
   for dirPath in dirPaths:
     filePathInDir = path.expanduser(path.join(dirPath, filePath))
     if path.exists(filePathInDir):
-      return filePathInDir
+      return path.abspath(filePathInDir)
   here = path.abspath(path.dirname(__file__))
   filePathInDir = path.join(here, filePath)
   if path.exists(filePathInDir):
@@ -98,7 +98,7 @@ class TielSyntaxError(TielError):
   """Directive syntax error."""
   def __init__(self, message: str,
                filePath: str, lineNumber: int) -> None:
-    super(TielError, self).__init__(
+    super(TielSyntaxError, self).__init__(
       f'syntax error: {message}', filePath, lineNumber)
 
 
@@ -106,7 +106,7 @@ class TielRuntimeError(TielError):
   """Error in the directive or line substitution evaluation."""
   def __init__(self, message: str,
                filePath: str, lineNumber: int) -> None:
-    super(TielError, self).__init__(
+    super(TielRuntimeError, self).__init__(
       f'runtime error: {message}', filePath, lineNumber)
 
 
@@ -162,6 +162,7 @@ _MISPLACED_HEADS \
      for head in ['else', 'else if', 'end if', 'end do',
                   'section', 'finally', 'pattern', 'end macro']]
 
+_BUILTIN_HEADERS = {'.f90': 'tiel/syntax.fd'}
 
 class TielTree:
   """Fortiel syntax tree."""
@@ -348,6 +349,15 @@ class TielParser:
   def parse(self) -> TielTree:
     """Parse the source lines."""
     tree = TielTree(self._filePath)
+    # Add builtin headers based on file extension.
+    _, fileExt = path.splitext(self._filePath)
+    builtinPath = _BUILTIN_HEADERS.get(fileExt.lower())
+    if builtinPath is not None:
+      useBuiltinNode = TielNodeUse(self._filePath,
+                            self._currentLineNumber)
+      useBuiltinNode.usedFilePath = builtinPath
+      tree.rootNodes.append(useBuiltinNode)
+    # Parse file contents.
     while not self._matchesEnd():
       tree.rootNodes.append(self._parseStatement())
     return tree
@@ -619,6 +629,7 @@ class TielExecutor:
   def __init__(self, options: TielOptions):
     self._scope: Dict[str, Any] = {}
     self._macros: Dict[str, TielNodeMacro] = {}
+    self._usedFilePaths: Set[str] = set()
     self._options: TielOptions = options
 
   def execTree(self, tree: TielTree, printer: TielPrinter) -> None:
@@ -748,26 +759,30 @@ class TielExecutor:
 
   def _execNodeUse(self, node: TielNodeUse) -> None:
     """Execute USE node."""
+    # Resolve file path.
     nodeDirPath = path.dirname(node.filePath)
     usedFilePath = _findFile(node.usedFilePath,
                              self._options.includePaths + [nodeDirPath])
     if usedFilePath is None:
       message = f'`{node.usedFilePath}` was not found in the include paths'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
-    try:
-      with open(usedFilePath, mode='r') as usedFile:
-        usedFileLines = usedFile.read().splitlines()
-    except IsADirectoryError as error:
-      message = f'`{node.usedFilePath}` is a directory'
-      raise TielRuntimeError(message, node.filePath, node.lineNumber) from error
-    except IOError as error:
-      message = f'unable to read file `{node.usedFilePath}`'
-      raise TielRuntimeError(message, node.filePath, node.lineNumber) from error
-    # Parse and execute the dependency.
-    # ( Use a dummy printer in order to skip code lines. )
-    usedTree = TielParser(node.usedFilePath, usedFileLines).parse()
-    def _dummyPrinter(_: str): pass
-    self.execTree(usedTree, _dummyPrinter)
+    # Ensure that file is used only once.
+    if usedFilePath not in self._usedFilePaths:
+      self._usedFilePaths.add(usedFilePath)
+      try:
+        with open(usedFilePath, mode='r') as usedFile:
+          usedFileLines = usedFile.read().splitlines()
+      except IsADirectoryError as error:
+        message = f'`{node.usedFilePath}` is a directory'
+        raise TielRuntimeError(message, node.filePath, node.lineNumber) from error
+      except IOError as error:
+        message = f'unable to read file `{node.usedFilePath}`'
+        raise TielRuntimeError(message, node.filePath, node.lineNumber) from error
+      # Parse and execute the dependency.
+      # ( Use a dummy printer in order to skip code lines. )
+      usedTree = TielParser(node.usedFilePath, usedFileLines).parse()
+      def _dummyPrinter(_: str): pass
+      self.execTree(usedTree, _dummyPrinter)
 
   def _execNodeLet(self, node: TielNodeLet) -> None:
     """Execute LET node."""

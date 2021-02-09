@@ -98,10 +98,13 @@ def gfortiel_main() -> None:
   exitCode = 0
   outputFilePaths = []
   for filePath in filePaths:
-    outputFilePath \
-      = tempfile.NamedTemporaryFile().name + os.path.splitext(filePath)[1]
-    outputFilePaths.append(outputFilePath)
-    exitCode |= _gfortielPreprocess(filePath, outputFilePath)
+    with tempfile.NamedTemporaryFile() as outputFile:
+      outputFilePath \
+        = outputFile.name + os.path.splitext(filePath)[1]
+    fileExitCode = _gfortielPreprocess(filePath, outputFilePath)
+    if fileExitCode == _EXIT_SUCCESS:
+      outputFilePaths.append(outputFilePath)
+    exitCode |= fileExitCode
   # Compile the preprocessed sources.
   if exitCode == _EXIT_SUCCESS:
     compilerCommand \
@@ -109,9 +112,11 @@ def gfortiel_main() -> None:
     exitCode = os.system(compilerCommand)
     sys.stderr.flush()
   # Delete the generated preprocessed sources and exit.
-  for outputFilePath in outputFilePaths:
-    os.remove(outputFilePath)
-  sys.exit(exitCode)
+  try:
+    for outputFilePath in outputFilePaths:
+      os.remove(outputFilePath)
+  finally:
+    sys.exit(exitCode)
 
 
 if __name__ == "__main__":
