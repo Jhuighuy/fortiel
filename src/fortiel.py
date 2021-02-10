@@ -42,7 +42,7 @@ import argparse
 from os import path
 
 from typing import (cast, List, Set, Dict, Tuple, Any,
-                    Union, Optional, Callable, Pattern, Match)
+                    Union, Optional, Callable, Literal, Pattern, Match)
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -55,7 +55,7 @@ def _regExpr(pattern: str) -> Pattern[str]:
 
 
 def _makeName(name: str) -> str:
-  """Compile name to ..."""
+  """Compile a single-word lower case identifier."""
   return re.sub(r'\s*', '', name.lower())
 
 
@@ -118,7 +118,9 @@ class TielOptions:
   """Preprocessor options.
   """
   def __init__(self) -> None:
+    self.defines: List[str] = []
     self.includePaths: List[str] = []
+    self.lineMarkerFormat: Literal['fpp', 'cpp', 'none'] = 'none'
 
 
 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
@@ -634,7 +636,12 @@ class TielExecutor:
 
   def execTree(self, tree: TielTree, printer: TielPrinter) -> None:
     """Execute the syntax tree or the syntax tree node."""
-    printer(f'# 1 "{tree.filePath}" 1')
+    # Print primary line marker.
+    if self._options.lineMarkerFormat == 'fpp':
+      printer(f'# 1 "{tree.filePath}" 1')
+    elif self._options.lineMarkerFormat == 'cpp':
+      printer(f'#line 1 "{tree.filePath}" 1')
+    # Execute tree nodes.
     self._execNodeList(tree.rootNodes, printer)
 
   def _execNodeList(self, nodes: List[TielNode], printer: TielPrinter) -> None:
@@ -753,7 +760,12 @@ class TielExecutor:
 
   def _execNodeLineList(self, node: TielNodeLineList, printer: TielPrinter) -> None:
     """Execute line block."""
-    printer(f'# {node.lineNumber} "{node.filePath}"')
+    # Print line marker.
+    if self._options.lineMarkerFormat == 'fpp':
+      printer(f'# {node.lineNumber} "{node.filePath}"')
+    elif self._options.lineMarkerFormat == 'cpp':
+      printer(f'#line {node.lineNumber} "{node.filePath}"')
+    # Print lines.
     for lineNumber, line in enumerate(node.lines, start=node.lineNumber):
       self._execLine(line, node.filePath, lineNumber, printer)
 
@@ -949,28 +961,37 @@ def tiel_preprocess(filePath: str,
 
 def tiel_main() -> None:
   """Fortiel entry point."""
-  arg_parser = \
-    argparse.ArgumentParser(prog='src')
-  arg_parser.add_argument(
+  # Make CLI description and parse it.
+  argParser = \
+    argparse.ArgumentParser()
+  argParser.add_argument(
     '-D', '--define',
-    action='append', dest='defines', metavar='NAME[=VALUE]',
+    action='append', dest='defines', default=[], metavar='NAME[=VALUE]',
     help='define a named variable')
-  arg_parser.add_argument(
+  argParser.add_argument(
     '-I', '--include',
-    action='append', dest='defines', metavar='INCLUDE_DIR',
+    action='append', dest='include_dirs', default=[], metavar='INCLUDE_DIR',
     help='add an include directory path')
-  arg_parser.add_argument(
+  argParser.add_argument(
     '-N', '--line_markers',
-    choices=['fpp', 'cpp', 'node'], default='fpp',
-    help='emit line markers in the output')
-  arg_parser.add_argument('filePath',
-                          help='input file path')
-  arg_parser.add_argument('output_filePath',
-                          help='output file path')
-  args = arg_parser.parse_args()
-  filePath = args.filePath
-  output_filePath = args.output_filePath
-  tiel_preprocess(filePath, output_filePath)
+    choices=['fpp', 'cpp', 'none'], default='fpp',
+    help='line markers format')
+  argParser.add_argument(
+    'file_path',
+    help='input file path')
+  argParser.add_argument(
+    'output_file_path',
+    help='output file path')
+  args = argParser.parse_args()
+  # Get input and output file paths.
+  filePath = args.file_path
+  outputFilePath = args.output_file_path
+  # Get other options.
+  options = TielOptions()
+  options.defines += args.defines
+  options.includePaths += args.include_dirs
+  options.lineMarkerFormat = args.line_markers
+  tiel_preprocess(filePath, outputFilePath, options)
 
 
 if __name__ == '__main__':
