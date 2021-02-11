@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X     ,------.               ,--.  ,--.       ,--.      X+X+X #
-# X+X+X     |  .---',---. ,--.--.,-'  '-.`--' ,---. |  |      X+X+X #
-# X+X+X     |  `--,| .-. ||  .--''-.  .-',--.| .-. :|  |      X+X+X #
-# X+X+X     |  |`  ' '-' '|  |     |  |  |  |\   --.|  |      X+X+X #
-# X+X+X     `--'    `---' `--'     `--'  `--' `----'`--'      X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X                                                           X+X #
-# X                                                               X #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+                                                       +-+-+ #
+# +-+-+     ,------.               ,--.  ,--.       ,--.      +-+-+ #
+# +-+-+     |  .---',---. ,--.--.,-'  '-.`--' ,---. |  |      +-+-+ #
+# +-+-+     |  `--,| .-. ||  .--''-.  .-',--.| .-. :|  |      +-+-+ #
+# +-+-+     |  |`  ' '-' '|  |     |  |  |  |\   --.|  |      +-+-+ #
+# +-+-+     `--'    `---' `--'     `--'  `--' `----'`--'      +-+-+ #
+# +-+-+                                                       +-+-+ #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+                                                       +-+-+ #
+# +-+                                                           +-+ #
+# +                                                               + #
 #                                                                   #
 # Copyright (C) 2021 Oleg Butakov                                   #
 #                                                                   #
@@ -36,10 +36,10 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR     #
 # OTHER DEALINGS IN THE SOFTWARE.                                   #
 #                                                                   #
-# X                                                               X #
-# X+X                                                           X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# +                                                               + #
+# +-+                                                           +-+ #
+# +-+-+                                                       +-+-+ #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
 """
@@ -54,11 +54,11 @@ from typing import (cast, List, Set, Dict, Tuple, Any, Union,
                     Optional, Callable, Literal, Pattern, Match)
 
 
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X                Fortiel Helper Routines                X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+                                                       +-+-+ #
+# +-+-+                Fortiel Helper Routines                +-+-+ #
+# +-+-+                                                       +-+-+ #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
 def _regExpr(pattern: str) -> Pattern[str]:
@@ -87,11 +87,11 @@ def _findFile(filePath: str, dirPaths: List[str]) -> Optional[str]:
   return None
 
 
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X            Fortiel Exceptions and Messages            X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+            Fortiel Exceptions and Messages            +-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
 class TielError(Exception):
@@ -125,24 +125,26 @@ class TielRuntimeError(TielError):
       f'runtime error: {message}', filePath, lineNumber)
 
 
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+                    Fortiel Options                    +-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
 class TielOptions:
-  """Preprocessor options.
-  """
+  """Preprocessor options."""
   def __init__(self) -> None:
     self.defines: List[str] = []
     self.includePaths: List[str] = []
     self.lineMarkerFormat: Literal['fpp', 'cpp', 'none'] = 'none'
 
 
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X          Fortiel Lexer and Directives Parser          X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+          Fortiel Lexer and Directives Parser          +-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
 _DIRECTIVE = _regExpr(r'^\s*#@\s*(?P<directive>.*)?$')
@@ -617,11 +619,11 @@ class TielParser:
     return node
 
 
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X              Fortiel Directives Executor              X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+              Fortiel Directives Executor              +-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
 _NAME_SUB = _regExpr(r'\$\s*(?P<name>[_a-zA-Z]\w*)\b')
@@ -952,11 +954,11 @@ class TielExecutor:
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
 
 
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X              Fortiel API and Entry Point              X+X+X #
-# X+X+X                                                       X+X+X #
-# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+              Fortiel API and Entry Point              +-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
 def tiel_preprocess(filePath: str,
