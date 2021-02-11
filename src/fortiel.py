@@ -43,8 +43,9 @@
 
 
 """
-Fortiel language compiler and executor.
+Fortiel language translator and executor.
 """
+
 
 import re
 import argparse

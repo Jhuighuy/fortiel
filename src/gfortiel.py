@@ -41,16 +41,26 @@
 # +-+-+                                                       +-+-+ #
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
-import sys
+
+"""
+GFortiel, Fortiel language compiler, implemented as GFortran
+wrapper.
+"""
+
+
 import os
+import sys
 import glob
 import tempfile
 from typing import List, Tuple
 from fortiel import tielPreprocess, TielError
 
 
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+        GFortiel, The GFortran Compiler Wrapper        +-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
+# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
 _EXIT_SUCCESS = 0
