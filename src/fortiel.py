@@ -158,7 +158,7 @@ class TielOptions:
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
-_DIRECTIVE = _regExpr(r'^\s*#@\s*(?P<directive>.*)?$')
+SYNTAX_DIRECTIVE = _regExpr(r'^\s*#@\s*(?P<directive>.*)?$')
 _DIR_HEAD = _regExpr(r'^(?P<word>[^\s]+)(\s+(?P<word2>[^\s]+))?')
 
 SYNTAX_USE = _regExpr(r'^use\s+(?P<path>(\".+\")|(\'.+\')|(\<.+\>))$')
@@ -232,6 +232,7 @@ class TielNodeLet(TielNode):
     super().__init__(filePath, lineNumber)
     self.name: str = ''
     self.argumentsUnsplit: Optional[str] = None
+    self.arguments: Optional[List[str]] = None
     self.expression: str = ''
 
 
@@ -412,7 +413,7 @@ class TielParser:
 
   def _parseStatement(self) -> TielNode:
     """Parse a directive or a line list."""
-    if self._matchesLine(_DIRECTIVE):
+    if self._matchesLine(SYNTAX_DIRECTIVE):
       return self._parseDirective()
     if self._matchesLine(SYNTAX_CALL):
       self._parseLineContinuation()
@@ -426,14 +427,14 @@ class TielParser:
     while True:
       node.lines.append(self._currentLine)
       self._advanceLine()
-      if self._matchesEnd() or self._matchesLine(_DIRECTIVE, SYNTAX_CALL):
+      if self._matchesEnd() or self._matchesLine(SYNTAX_DIRECTIVE, SYNTAX_CALL):
         break
     return node
 
   def _parseDirective(self) -> TielNode:
     """Parse a directive."""
     self._parseLineContinuation()
-    directive = self._matchesLine(_DIRECTIVE)['directive']
+    directive = self._matchesLine(SYNTAX_DIRECTIVE)['directive']
     dirHead = type(self)._parseHead(directive)
     if dirHead == 'use':
       return self._parseDirectiveUse()
@@ -460,12 +461,12 @@ class TielParser:
       message = f'unknown or mistyped directive <{dirHead}>'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
 
-  def _matchesDirectiveHead(self, *dirHeadList: str) -> Optional[str]:
-    dirMatch = self._matchesLine(_DIRECTIVE)
+  def _matchesDirective(self, *dirHeadList: str) -> Optional[str]:
+    dirMatch = self._matchesLine(SYNTAX_DIRECTIVE)
     if dirMatch is not None:
       # Parse continuations and rematch.
       self._parseLineContinuation()
-      dirMatch = self._matchesLine(_DIRECTIVE)
+      dirMatch = self._matchesLine(SYNTAX_DIRECTIVE)
       directive = dirMatch['directive'].lower()
       dirHead = type(self)._parseHead(directive)
       if dirHead in [_makeName(head) for head in dirHeadList]:
@@ -475,7 +476,7 @@ class TielParser:
   def _matchDirectiveSyntax(self,
                             pattern: Pattern[str],
                             *groups: str) -> Union[str, Tuple[str, ...]]:
-    directive = self._matchesLine(_DIRECTIVE)['directive'].rstrip()
+    directive = self._matchesLine(SYNTAX_DIRECTIVE)['directive'].rstrip()
     match = pattern.match(directive)
     if match is None:
       dirHead = type(self)._parseHead(directive)
@@ -519,19 +520,19 @@ class TielParser:
     # or validating condition expressions here.
     node = TielNodeIf(self._filePath, self._currentLineNumber)
     node.condition = self._matchDirectiveSyntax(SYNTAX_IF, 'condition')
-    while not self._matchesDirectiveHead('else if', 'else', 'end if'):
+    while not self._matchesDirective('else if', 'else', 'end if'):
       node.thenNodes.append(self._parseStatement())
-    if self._matchesDirectiveHead('else if'):
-      while not self._matchesDirectiveHead('else', 'end if'):
+    if self._matchesDirective('else if'):
+      while not self._matchesDirective('else', 'end if'):
         elseIfNode = TielNodeElseIf(self._filePath, self._currentLineNumber)
         elseIfNode.condition \
           = self._matchDirectiveSyntax(SYNTAX_ELSEIF, 'condition')
-        while not self._matchesDirectiveHead('else if', 'else', 'end if'):
+        while not self._matchesDirective('else if', 'else', 'end if'):
           elseIfNode.branchNodes.append(self._parseStatement())
         node.elseIfNodes.append(elseIfNode)
-    if self._matchesDirectiveHead('else'):
+    if self._matchesDirective('else'):
       self._matchDirectiveSyntax(SYNTAX_ELSE)
-      while not self._matchesDirectiveHead('end if'):
+      while not self._matchesDirective('end if'):
         node.elseNodes.append(self._parseStatement())
     self._matchDirectiveSyntax(SYNTAX_ENDIF)
     return node
@@ -543,7 +544,7 @@ class TielParser:
     node = TielNodeDo(self._filePath, self._currentLineNumber)
     node.indexName, node.ranges \
       = self._matchDirectiveSyntax(SYNTAX_DO, 'index', 'ranges')
-    while not self._matchesDirectiveHead('end do'):
+    while not self._matchesDirective('end do'):
       node.loopNodes.append(self._parseStatement())
     self._matchDirectiveSyntax(SYNTAX_ENDDO)
     return node
@@ -556,8 +557,8 @@ class TielParser:
     node.name = _makeName(node.name)
     node.patternNodes \
       = self._parseDirectivePatternList(node, pattern)
-    if self._matchesDirectiveHead('section'):
-      while not self._matchesDirectiveHead('finally', 'end macro'):
+    if self._matchesDirective('section'):
+      while not self._matchesDirective('finally', 'end macro'):
         sectionNode = TielNodeSection(self._filePath, self._currentLineNumber)
         sectionNode.name, sectionNode.once, pattern \
           = self._matchDirectiveSyntax(SYNTAX_SECTION, 'name', 'once', 'pattern')
@@ -566,9 +567,9 @@ class TielParser:
         sectionNode.patternNodes \
           = self._parseDirectivePatternList(sectionNode, pattern)
         node.sectionNodes.append(sectionNode)
-    if self._matchesDirectiveHead('finally'):
+    if self._matchesDirective('finally'):
       self._matchDirectiveSyntax(SYNTAX_FINALLY)
-      while not self._matchesDirectiveHead('end macro'):
+      while not self._matchesDirective('end macro'):
         node.finallyNodes.append(self._parseStatement())
     self._matchDirectiveSyntax(SYNTAX_ENDMACRO)
     return node
@@ -581,20 +582,18 @@ class TielParser:
     if pattern is not None:
       patternNode = TielNodePattern(node.filePath, node.lineNumber)
       patternNode.pattern = pattern
-      while not self._matchesDirectiveHead('pattern', 'section',
-                                           'finally', 'end macro'):
+      while not self._matchesDirective('pattern', 'section', 'finally', 'end macro'):
         patternNode.matchNodes.append(self._parseStatement())
       patternNodes.append(patternNode)
-    elif not self._matchesDirectiveHead('pattern'):
+    elif not self._matchesDirective('pattern'):
       message = 'expected <pattern> directive'
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
-    if self._matchesDirectiveHead('pattern'):
-      while not self._matchesDirectiveHead('section',
-                                           'finally', 'end macro'):
+    if self._matchesDirective('pattern'):
+      while not self._matchesDirective('section', 'finally', 'end macro'):
         patternNode = TielNodePattern(self._filePath, self._currentLineNumber)
         patternNode.pattern \
           = self._matchDirectiveSyntax(SYNTAX_PATTERN, 'pattern')
-        while not self._matchesDirectiveHead('pattern', 'section',
+        while not self._matchesDirective('pattern', 'section',
                                              'finally', 'end macro'):
           patternNode.matchNodes.append(self._parseStatement())
         patternNodes.append(patternNode)
@@ -620,8 +619,9 @@ class TielParser:
     # so it cannot be parsed with common routines.
     match = self._matchesLine(SYNTAX_CALL)
     if match is None:
-      message = f'invalid macro call syntax'
-      raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
+      message = f'invalid call segment syntax'
+      raise TielSyntaxError(
+        message, self._filePath, self._currentLineNumber)
     self._advanceLine()
     node.spaces, node.name, node.argument \
       = match.group('spaces', 'name', 'argument')
@@ -835,8 +835,11 @@ class TielExecutor:
       self._scope[node.name] = value
     else:
       # Evaluate variable as lambda function.
-      arguments = [name.strip() for name in node.argumentsUnsplit.split(',')]
-      if (duplicate := _findDuplicate(arguments)) is not None:
+      if node.arguments is None:
+        # TODO: fix for '*' prefix.
+        node.arguments \
+          = [name.strip() for name in node.argumentsUnsplit.split(',')]
+      if (duplicate := _findDuplicate(node.arguments)) is not None:
         message = f'duplicate argument `{duplicate}` of the functional <let>'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
       expression = f'lambda {node.argumentsUnsplit}: {node.expression}'
