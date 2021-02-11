@@ -1,36 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
-#
-# ,------.               ,--.  ,--.       ,--.
-# |  .---',---. ,--.--.,-'  '-.`--' ,---. |  |
-# |  `--,| .-. ||  .--''-.  .-',--.| .-. :|  |
-# |  |`  ' '-' '|  |     |  |  |  |\   --.|  |
-# `--'    `---' `--'     `--'  `--' `----'`--'
-#
-# Copyright (C) 2021 Oleg Butakov
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation
-# files (the "Software"), to deal in the Software without
-# restriction, including without limitation the rights  to use,
-# copy, modify, merge, publish, distribute, sublicense, and/or
-# sell copies of the Software, and to permit persons to whom the
-# Software is furnished to do so, subject to the following
-# conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
-# OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
-# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-# OTHER DEALINGS IN THE SOFTWARE.
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X     ,------.               ,--.  ,--.       ,--.      X+X+X #
+# X+X+X     |  .---',---. ,--.--.,-'  '-.`--' ,---. |  |      X+X+X #
+# X+X+X     |  `--,| .-. ||  .--''-.  .-',--.| .-. :|  |      X+X+X #
+# X+X+X     |  |`  ' '-' '|  |     |  |  |  |\   --.|  |      X+X+X #
+# X+X+X     `--'    `---' `--'     `--'  `--' `----'`--'      X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X                                                           X+X #
+# X                                                               X #
+#                                                                   #
+# Copyright (C) 2021 Oleg Butakov                                   #
+#                                                                   #
+# Permission is hereby granted, free of charge, to any person       #
+# obtaining a copy of this software and associated documentation    #
+# files (the "Software"), to deal in the Software without           #
+# restriction, including without limitation the rights  to use,     #
+# copy, modify, merge, publish, distribute, sublicense, and/or      #
+# sell copies of the Software, and to permit persons to whom the    #
+# Software is furnished to do so, subject to the following          #
+# conditions:                                                       #
+#                                                                   #
+# The above copyright notice and this permission notice shall be    #
+# included in all copies or substantial portions of the Software.   #
+#                                                                   #
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,   #
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES   #
+# OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND          #
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT       #
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,      #
+# WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING      #
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR     #
+# OTHER DEALINGS IN THE SOFTWARE.                                   #
+#                                                                   #
+# X                                                               X #
+# X+X                                                           X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
 
 
 """
@@ -41,12 +50,15 @@ import re
 import argparse
 from os import path
 
-from typing import (cast, List, Set, Dict, Tuple, Any,
-                    Union, Optional, Callable, Literal, Pattern, Match)
+from typing import (cast, List, Set, Dict, Tuple, Any, Union,
+                    Optional, Callable, Literal, Pattern, Match)
 
 
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X                Fortiel Helper Routines                X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
 
 
 def _regExpr(pattern: str) -> Pattern[str]:
@@ -75,8 +87,11 @@ def _findFile(filePath: str, dirPaths: List[str]) -> Optional[str]:
   return None
 
 
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X            Fortiel Exceptions and Messages            X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
 
 
 class TielError(Exception):
@@ -123,8 +138,11 @@ class TielOptions:
     self.lineMarkerFormat: Literal['fpp', 'cpp', 'none'] = 'none'
 
 
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X          Fortiel Lexer and Directives Parser          X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
 
 
 _DIRECTIVE = _regExpr(r'^\s*#@\s*(?P<directive>.*)?$')
@@ -304,8 +322,7 @@ class TielNodeCallSection(TielNode):
 
 
 class TielParser:
-  """Preprocessor syntax tree parser.
-  """
+  """Fortiel syntax tree parser."""
   def __init__(self, filePath: str, lines: List[str]) -> None:
     self._filePath: str = filePath
     self._lines: List[str] = lines
@@ -391,8 +408,8 @@ class TielParser:
 
   def _parseLineList(self) -> TielNodeLineList:
     """Parse a line list."""
-    node = TielNodeLineList(self._filePath,
-                            self._currentLineNumber)
+    node = TielNodeLineList(
+      self._filePath, self._currentLineNumber)
     while True:
       node.lines.append(self._currentLine)
       self._advanceLine()
@@ -530,8 +547,7 @@ class TielParser:
       while not self._matchesDirectiveHead('finally', 'end macro'):
         sectionNode = TielNodeSection(self._filePath, self._currentLineNumber)
         sectionNode.name, sectionNode.once, pattern \
-          = self._matchDirectiveSyntax(SYNTAX_SECTION,
-                                       'name', 'once', 'pattern')
+          = self._matchDirectiveSyntax(SYNTAX_SECTION, 'name', 'once', 'pattern')
         sectionNode.name = _makeName(sectionNode.name)
         sectionNode.once = sectionNode.once is not None
         sectionNode.patternNodes \
@@ -601,8 +617,11 @@ class TielParser:
     return node
 
 
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X              Fortiel Directives Executor              X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
 
 
 _NAME_SUB = _regExpr(r'\$\s*(?P<name>[_a-zA-Z]\w*)\b')
@@ -933,19 +952,22 @@ class TielExecutor:
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
 
 
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< #
-# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X              Fortiel API and Entry Point              X+X+X #
+# X+X+X                                                       X+X+X #
+# X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X+X #
 
 
 def tiel_preprocess(filePath: str,
-                    output_filePath: str,
+                    outputFilePath: str,
                     options: TielOptions = TielOptions()) -> None:
   """Preprocess the source file."""
-  with open(filePath, 'r') as fp:
-    lines = fp.read().splitlines()
+  with open(filePath, 'r') as file:
+    lines = file.read().splitlines()
   tree: TielTree = TielParser(filePath, lines).parse()
-  with open(output_filePath, 'w') as fp:
-    def _printer(line): print(line, file=fp)
+  with open(outputFilePath, 'w') as outputFile:
+    def _printer(line): print(line, file=outputFile)
     TielExecutor(options).execTree(tree, _printer)
 
 
