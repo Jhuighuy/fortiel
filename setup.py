@@ -76,8 +76,8 @@ setup(
 
   entry_points={
     'console_scripts': [
-      'fortiel=fortiel:tiel_main',
-      'gfortiel=gfortiel:gfortiel_main'
+      'fortiel=fortiel:main',
+      'gfortiel=gfortiel:main'
     ]
   }
 )

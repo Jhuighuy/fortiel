@@ -87,6 +87,16 @@ def _findFile(filePath: str, dirPaths: List[str]) -> Optional[str]:
   return None
 
 
+def _findDuplicate(names: List[str]) -> Optional[str]:
+  """Find first duplicate in the list."""
+  namesSet: Set[str] = set()
+  for name in names:
+    if name in namesSet:
+      return name
+    namesSet.add(name)
+  return None
+
+
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 # +-+-+-+-+-+                                           +-+-+-+-+-+ #
 # +-+-+            Fortiel Exceptions and Messages            +-+-+ #
@@ -164,7 +174,7 @@ SYNTAX_ELSEIF = _regExpr(r'^else\s*if\s*(?P<condition>.+)\s*:?$')
 SYNTAX_ELSE = _regExpr(r'^else$')
 SYNTAX_ENDIF = _regExpr(r'^end\s*if$')
 
-SYNTAX_DO = _regExpr(r'^do\s+(?P<index>[a-zA-Z_]\w*)\s*=\s*(?P<bounds>.*)\s*:?$')
+SYNTAX_DO = _regExpr(r'^do\s+(?P<index>[a-zA-Z_]\w*)\s*=\s*(?P<ranges>.*)\s*:?$')
 SYNTAX_ENDDO = _regExpr(r'^end\s*do$')
 
 SYNTAX_MACRO = _regExpr(r'^macro\s+(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>\^.*\$))?$')
@@ -220,7 +230,7 @@ class TielNodeLet(TielNode):
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.name: str = ''
-    self.arguments: Optional[str] = None
+    self.argumentsUnsplit: Optional[str] = None
     self.expression: str = ''
 
 
@@ -254,7 +264,7 @@ class TielNodeDo(TielNode):
   def __init__(self, filePath: str, lineNumber: int) -> None:
     super().__init__(filePath, lineNumber)
     self.indexName: str = ''
-    self.bounds: str = ''
+    self.ranges: str = ''
     self.loopNodes: List[TielNode] = []
 
 
@@ -486,11 +496,11 @@ class TielParser:
     # Note that we are not
     # evaluating or validating define arguments and body here.
     node = TielNodeLet(self._filePath, self._currentLineNumber)
-    node.name, node.arguments, node.expression \
+    node.name, node.argumentsUnsplit, node.expression \
       = self._matchDirectiveSyntax(SYNTAX_LET,
                                    'name', 'arguments', 'expression')
-    if node.arguments is not None:
-      node.arguments = node.arguments[1:-1].strip()
+    if node.argumentsUnsplit is not None:
+      node.argumentsUnsplit = node.argumentsUnsplit[1:-1].strip()
     return node
 
   def _parseDirectiveDel(self) -> TielNodeDel:
@@ -530,8 +540,8 @@ class TielParser:
     # Note that we are not evaluating
     # or validating loop bound expressions here.
     node = TielNodeDo(self._filePath, self._currentLineNumber)
-    node.indexName, node.bounds \
-      = self._matchDirectiveSyntax(SYNTAX_DO, 'index', 'bounds')
+    node.indexName, node.ranges \
+      = self._matchDirectiveSyntax(SYNTAX_DO, 'index', 'ranges')
     while not self._matchesDirectiveHead('end do'):
       node.loopNodes.append(self._parseStatement())
     self._matchDirectiveSyntax(SYNTAX_ENDDO)
@@ -703,8 +713,8 @@ class TielExecutor:
         message = f'expected `@{endName}` call segment'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
 
-  def _evalPyExpr(self,
-                  expression: str, filePath: str, lineNumber: int) -> Any:
+  def _evalExpression(self,
+                      expression: str, filePath: str, lineNumber: int) -> Any:
     """Evaluate Python expression."""
     try:
       value = eval(expression, self._scope)
@@ -755,7 +765,7 @@ class TielExecutor:
     # Evaluate expression substitutions.
     def _lineSubReplace(match: Match[str]) -> str:
       expression = match['expression']
-      return str(self._evalPyExpr(expression, filePath, lineNumber))
+      return str(self._evalExpression(expression, filePath, lineNumber))
     line = _LINE_SUB.sub(_lineSubReplace, line)
     # Evaluate <@:> substitutions.
     def _loopSubReplace(match: Match[str]) -> str:
@@ -817,21 +827,20 @@ class TielExecutor:
     if node.name in _BUILTIN_NAMES:
       message = f'builtin name <{node.name}> can not be redefined'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
-    if node.arguments is None:
+    if node.argumentsUnsplit is None:
       # Evaluate variable.
-      value = self._evalPyExpr(node.expression,
-                               node.filePath, node.lineNumber)
+      value = self._evalExpression(
+        node.expression, node.filePath, node.lineNumber)
       self._scope[node.name] = value
     else:
       # Evaluate variable as lambda function.
-      argNames = [arg.strip()
-                  for arg in node.arguments.split(',')]
-      if len(argNames) > len(set(argNames)):
-        message = 'functional <let> arguments must be unique'
+      arguments = [name.strip() for name in node.argumentsUnsplit.split(',')]
+      if (duplicate := _findDuplicate(arguments)) is not None:
+        message = f'duplicate argument `{duplicate}` of the functional <let>'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
-      expression = f'lambda {node.arguments}: {node.expression}'
-      function = self._evalPyExpr(expression,
-                                  node.filePath, node.lineNumber)
+      expression = f'lambda {node.argumentsUnsplit}: {node.expression}'
+      function = self._evalExpression(
+        expression, node.filePath, node.lineNumber)
       self._scope[node.name] = function
 
   def _evalNodeDel(self, node: TielNodeDel) -> None:
@@ -848,14 +857,14 @@ class TielExecutor:
   def _execNodeIf(self, node: TielNodeIf, printer: TielPrinter) -> None:
     """Execute IF/ELSE IF/ELSE/END IF node."""
     # Evaluate condition and execute THEN branch.
-    if self._evalPyExpr(node.condition,
-                        node.filePath, node.lineNumber):
+    if self._evalExpression(
+        node.condition, node.filePath, node.lineNumber):
       self._execNodeList(node.thenNodes, printer)
     else:
       # Evaluate condition and execute ELSE IF branches.
       for elseIfNode in node.elseIfNodes:
-        if self._evalPyExpr(elseIfNode.condition,
-                            elseIfNode.filePath, elseIfNode.lineNumber):
+        if self._evalExpression(
+            elseIfNode.condition, elseIfNode.filePath, elseIfNode.lineNumber):
           self._execNodeList(elseIfNode.branchNodes, printer)
           break
       else:
@@ -864,17 +873,17 @@ class TielExecutor:
 
   def _execNodeDo(self, node: TielNodeDo, printer: TielPrinter) -> None:
     """Execute DO/END DO node."""
-    # Evaluate loop bounds.
-    bounds = self._evalPyExpr(node.bounds,
-                              node.filePath, node.lineNumber)
-    if not (isinstance(bounds, tuple)
-            and (2 <= len(bounds) <= 3)
-            and list(map(type, bounds)) == len(bounds) * [int]):
+    # Evaluate loop ranges.
+    ranges = self._evalExpression(
+      node.ranges, node.filePath, node.lineNumber)
+    if not (isinstance(ranges, tuple)
+            and (2 <= len(ranges) <= 3)
+            and list(map(type, ranges)) == len(ranges) * [int]):
       message = 'tuple of two or three integers inside the <do> ' \
-                + f'directive bounds is expected, got `{node.bounds}`'
+                + f'directive ranges is expected, got `{node.ranges}`'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
-    start, stop = bounds[0:2]
-    step = bounds[2] if len(bounds) == 3 else 1
+    start, stop = ranges[0:2]
+    step = ranges[2] if len(ranges) == 3 else 1
     # Save previous index value
     # in case we are inside the nested loop.
     prevIndex = self._scope.get('__INDEX__')
@@ -893,12 +902,13 @@ class TielExecutor:
       message = f'macro `{node.name}` is already defined'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
     if len(node.sectionNodes) > 0:
-      sectionNames = node.sectionNames()
-      if node.name in sectionNames:
-        message = 'section name cannot be the same with macro name'
+      sections = node.sectionNames()
+      if node.name in sections:
+        message = f'section name cannot be the same with macro `{node.name}` name'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
-      if len(sectionNames) != len(set(sectionNames)):
-        message = 'section names must be unique'
+      if (duplicate := _findDuplicate(sections)) is not None:
+        message = f'duplicate section `{duplicate}` ' \
+                  + f'of the macro construct `{node.name}`'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
     # Add macro to the scope.
     self._macros[node.name] = node
@@ -927,8 +937,8 @@ class TielExecutor:
           raise TielRuntimeError(
             message, callSectionNode.filePath, callSectionNode.lineNumber)
         # Execute the section.
-        self._execNodePatternList(callSectionNode,
-                                  sectionNode, _spacedPrinter)
+        self._execNodePatternList(
+          callSectionNode, sectionNode, _spacedPrinter)
         self._execNodeList(callSectionNode.capturedNodes, printer)
         # Advance a section for sections with 'once' attribute.
         if sectionNode.once:
@@ -961,9 +971,9 @@ class TielExecutor:
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
-def tiel_preprocess(filePath: str,
-                    outputFilePath: str,
-                    options: TielOptions = TielOptions()) -> None:
+def tielPreprocess(filePath: str,
+                   outputFilePath: str,
+                   options: TielOptions = TielOptions()) -> None:
   """Preprocess the source file."""
   with open(filePath, 'r') as file:
     lines = file.read().splitlines()
@@ -973,23 +983,27 @@ def tiel_preprocess(filePath: str,
     TielExecutor(options).execTree(tree, _printer)
 
 
-def tiel_main() -> None:
+def main() -> None:
   """Fortiel entry point."""
   # Make CLI description and parse it.
   argParser = \
     argparse.ArgumentParser()
+  # Preprocessor definitions.
   argParser.add_argument(
     '-D', '--define',
-    action='append', dest='defines', default=[], metavar='NAME[=VALUE]',
+    action='append', dest='defines', default=[], metavar='name[=value]',
     help='define a named variable')
+  # Preprocessor include directories.
   argParser.add_argument(
     '-I', '--include',
-    action='append', dest='include_dirs', default=[], metavar='INCLUDE_DIR',
+    action='append', dest='include_dirs', default=[], metavar='includeDir',
     help='add an include directory path')
+  # Line marker format.
   argParser.add_argument(
-    '-N', '--line_markers',
+    '-M', '--line_markers',
     choices=['fpp', 'cpp', 'none'], default='fpp',
     help='line markers format')
+  # Input and output file paths.
   argParser.add_argument(
     'file_path',
     help='input file path')
@@ -1005,8 +1019,9 @@ def tiel_main() -> None:
   options.defines += args.defines
   options.includePaths += args.include_dirs
   options.lineMarkerFormat = args.line_markers
-  tiel_preprocess(filePath, outputFilePath, options)
+  # Execute the compiler.
+  tielPreprocess(filePath, outputFilePath, options)
 
 
 if __name__ == '__main__':
-  tiel_main()
+  main()
