@@ -499,8 +499,7 @@ class TielParser:
     # evaluating or validating define arguments and body here.
     node = TielNodeLet(self._filePath, self._currentLineNumber)
     node.name, node.argumentsUnsplit, node.expression \
-      = self._matchDirectiveSyntax(SYNTAX_LET,
-                                   'name', 'arguments', 'expression')
+      = self._matchDirectiveSyntax(SYNTAX_LET, 'name', 'arguments', 'expression')
     if node.argumentsUnsplit is not None:
       node.argumentsUnsplit = node.argumentsUnsplit[1:-1].strip()
     return node
@@ -593,8 +592,7 @@ class TielParser:
         patternNode = TielNodePattern(self._filePath, self._currentLineNumber)
         patternNode.pattern \
           = self._matchDirectiveSyntax(SYNTAX_PATTERN, 'pattern')
-        while not self._matchesDirective('pattern', 'section',
-                                             'finally', 'end macro'):
+        while not self._matchesDirective('pattern', 'section', 'finally', 'end macro'):
           patternNode.matchNodes.append(self._parseStatement())
         patternNodes.append(patternNode)
     # Compile the patterns.
@@ -709,13 +707,13 @@ class TielExecutor:
         if len(node.callSectionNodes) == 0:
           node.capturedNodes.append(nextNode)
         else:
-          node.callSectionNodes[-1].capturedNodes.append(nextNode)
+          sectionNode = node.callSectionNodes[-1]
+          sectionNode.capturedNodes.append(nextNode)
       else:
         message = f'expected `@{endName}` call segment'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
 
-  def _evalExpression(self,
-                      expression: str, filePath: str, lineNumber: int) -> Any:
+  def _evalExpression(self, expression: str, filePath: str, lineNumber: int) -> Any:
     """Evaluate Python expression."""
     try:
       value = eval(expression, self._scope)
@@ -981,7 +979,7 @@ def tielPreprocess(filePath: str,
   """Preprocess the source file."""
   with open(filePath, 'r') as file:
     lines = file.read().splitlines()
-  tree: TielTree = TielParser(filePath, lines).parse()
+  tree = TielParser(filePath, lines).parse()
   with open(outputFilePath, 'w') as outputFile:
     def _printer(line): print(line, file=outputFile)
     TielExecutor(options).execTree(tree, _printer)
@@ -994,13 +992,13 @@ def main() -> None:
     argparse.ArgumentParser()
   # Preprocessor definitions.
   argParser.add_argument(
-    '-D', '--define',
-    action='append', dest='defines', default=[], metavar='name[=value]',
+    '-D', '--define', metavar='name[=value]',
+    action='append', dest='defines', default=[],
     help='define a named variable')
   # Preprocessor include directories.
   argParser.add_argument(
-    '-I', '--include',
-    action='append', dest='include_dirs', default=[], metavar='includeDir',
+    '-I', '--include', metavar='includeDir',
+    action='append', dest='include_dirs', default=[],
     help='add an include directory path')
   # Line marker format.
   argParser.add_argument(
