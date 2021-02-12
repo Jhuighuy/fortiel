@@ -64,7 +64,7 @@ from typing import (cast, List, Set, Dict, Tuple, Any, Union,
 
 def _regExpr(pattern: str) -> Pattern[str]:
   """Compile regular expression."""
-  return re.compile(pattern, re.IGNORECASE)
+  return re.compile(pattern, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
 
 
 def _makeName(name: str) -> str:
@@ -158,17 +158,40 @@ class TielOptions:
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
-SYNTAX_DIRECTIVE = _regExpr(r'^\s*#@\s*(?P<directive>.*)?$')
-_DIR_HEAD = _regExpr(r'^(?P<word>[^\s]+)(\s+(?P<word2>[^\s]+))?')
+LEXEME = _regExpr(r'''
+  ^(?P<spaces>\s*)(?P<contents>
+    # Numeric or BOZ literal.
+      \d+(?:\.\d+)?(?:[a-zA-Z][\+\-]?\d+)?(?:_\w+)?
+    | b(?:\'[01]+\'|\"[01]+\")
+    | o(?:\'[0-7]+\'|\"[0-7]+\")
+    | z(?:\'[0-9a-fA-F]+\'|\"[0-9a-fA-F]+\")
+    # String or Character literal.
+    | \`(?:\\\'|[^\`])*\`
+    | \'(?:\\\'|[^\'])*\'(?:_\w+)?
+    | \"(?:\\\"|[^\"])*\"(?:_\w+)?
+    # True or False literal.
+    | \.(?:true|false)\.(?:_\w+)?
+    # Operator or Line Breaks or Line Continuations.
+    | \.[a-zA-Z]\w*\.
+    | (?:[\+\-\*\/\=\(\)\,\:\;\&\@]|\<\=?|\>\=?)
+    | [_a-zA-Z]\w*
+    | \!.*
+    | $
+  )
+  ''')
 
-SYNTAX_USE = _regExpr(r'^use\s+(?P<path>(\".+\")|(\'.+\')|(\<.+\>))$')
+SYNTAX_DIRECTIVE = _regExpr(r'^\s*\#\@\s*(?P<directive>.*)?$')
+_DIR_HEAD = _regExpr(r'^(?P<word>[^\s]+)(?:\s+(?P<word2>[^\s]+))?')
 
-SYNTAX_LET = _regExpr(r'^let\s+(?P<name>[_a-zA-Z]\w*)\s*'
-                      + r'(?P<arguments>\((?:\*{0,2}[_a-zA-Z]\w*'
-                      + r'(\s*,\s*\*{0,2}[_a-zA-Z]\w*)*)?\s*\))?\s*'
-                      + r'=\s*(?P<expression>.*)$')
+SYNTAX_USE = _regExpr(r'^use\s+(?P<path>' +
+                      r'(?:\"[^\"]+\")|(?:\'[^\']+\')|(?:\<[^\>]+\>))$')
 
-SYNTAX_DEL = _regExpr(r'^del\s+(?P<names>[_a-zA-Z]\w*(\s*,\s*[a-zA-Z_]\w*)*)$')
+SYNTAX_LET = _regExpr(r'^let\s+(?P<name>[_a-zA-Z]\w*)\s*' +
+                      r'(?P<arguments>\((?:\*{0,2}[_a-zA-Z]\w*' +
+                      r'(?:\s*,\s*\*{0,2}[_a-zA-Z]\w*)*)?\s*\))?\s*' +
+                      r'=\s*(?P<expression>.*)$')
+
+SYNTAX_DEL = _regExpr(r'^del\s+(?P<names>[_a-zA-Z]\w*(?:\s*,\s*[a-zA-Z_]\w*)*)$')
 
 SYNTAX_IF = _regExpr(r'^if\s*(?P<condition>.+)\s*:?$')
 SYNTAX_ELSEIF = _regExpr(r'^else\s*if\s*(?P<condition>.+)\s*:?$')
@@ -180,14 +203,14 @@ SYNTAX_ENDDO = _regExpr(r'^end\s*do$')
 
 SYNTAX_MACRO = _regExpr(r'^macro\s+(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>\^.*\$))?$')
 SYNTAX_PATTERN = _regExpr(r'^pattern\s+(?P<pattern>\^.*\$)$')
-SYNTAX_SECTION = _regExpr(r'^section\s+(?P<once>once\s+)?'
-                          + r'(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>.*))?$')
+SYNTAX_SECTION = _regExpr(r'^section\s+(?P<once>once\s+)?' +
+                          r'(?P<name>[a-zA-Z]\w*)(?:\s+(?P<pattern>.*))?$')
 SYNTAX_FINALLY = _regExpr(r'^finally$')
 SYNTAX_ENDMACRO = _regExpr(r'^end\s*macro$')
 
-SYNTAX_CALL = _regExpr(r'^(?P<spaces>\s*)'
-                       + r'@(?P<name>(?:end\s*|else\s*)?[a-zA-Z]\w*)\b'
-                       + r'(?P<argument>[^!]*)(\s*!.*)?$')
+SYNTAX_CALL = _regExpr(r'^(?P<spaces>\s*)' +
+                       r'@(?P<name>(?:end\s*|else\s*)?[a-zA-Z]\w*)\b' +
+                       r'(?P<argument>[^!]*)(\s*!.*)?$')
 
 
 _MISPLACED_HEADS \
