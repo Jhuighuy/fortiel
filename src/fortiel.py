@@ -120,8 +120,16 @@ class TielError(Exception):
     return message
 
 
+class TielGrammarError(TielError):
+  """Fortiel grammar error."""
+  def __init__(self, message: str,
+               filePath: str, lineNumber: int) -> None:
+    super(TielGrammarError, self).__init__(
+      f'syntax error: {message}', filePath, lineNumber)
+
+
 class TielSyntaxError(TielError):
-  """Directive syntax error."""
+  """Fortiel syntax error."""
   def __init__(self, message: str,
                filePath: str, lineNumber: int) -> None:
     super(TielSyntaxError, self).__init__(
@@ -129,7 +137,7 @@ class TielSyntaxError(TielError):
 
 
 class TielRuntimeError(TielError):
-  """Error in the directive or line substitution evaluation."""
+  """Fortiel runtime error."""
   def __init__(self, message: str,
                filePath: str, lineNumber: int) -> None:
     super(TielRuntimeError, self).__init__(
@@ -158,27 +166,98 @@ class TielOptions:
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
-LEXEME = _regExpr(r'''
+GRAMMAR = _regExpr(r'''
   ^(?P<spaces>\s*)(?P<contents>
     # Numeric or BOZ literal.
-      \d+(?:\.\d+)?(?:[a-zA-Z][\+\-]?\d+)?(?:_\w+)?
-    | b(?:\'[01]+\'|\"[01]+\")
-    | o(?:\'[0-7]+\'|\"[0-7]+\")
-    | z(?:\'[0-9a-fA-F]+\'|\"[0-9a-fA-F]+\")
+      (?P<numericLiteral>\d+(?:\.\d+)?(?:[A-Z][\+\-]?\d+)?(?:_\w+)?
+      | b(?:\'[0-1]+\'|\"[0-1]+\")
+      | o(?:\'[0-7]+\'|\"[0-7]+\")
+      | z(?:\'[0-9A-F]+\'|\"[0-9a-fA-F]+\")
+      )
     # String or Character literal.
-    | \`(?:\\\'|[^\`])*\`
-    | \'(?:\\\'|[^\'])*\'(?:_\w+)?
-    | \"(?:\\\"|[^\"])*\"(?:_\w+)?
+    | (?P<pythonLiteral>\`(?:\\\'|[^\`])*\`)
+    | (?P<stringLiteral>\'(?:\\\'|[^\'])*\'(?:_\w+)?
+      | \"(?:\\\"|[^\"])*\"(?:_\w+)?
+      )
     # True or False literal.
-    | \.(?:true|false)\.(?:_\w+)?
+    | (?P<booleanLiteral>\.(?:TRUE|FALSE)\.(?:_\w+)?)
     # Operator or Line Breaks or Line Continuations.
-    | \.[a-zA-Z]\w*\.
-    | (?:[\+\-\*\/\=\(\)\,\:\;\&\@]|\<\=?|\>\=?)
-    | [_a-zA-Z]\w*
-    | \!.*
-    | $
+    | (?P<operator>\.[A-Z]\w*\.
+      | (?:[\+\-\*\/\(\)\[\]\{\}\%\,\;\&\@]|\:\:?|\=\>?|\<\=?|\>\=?)
+      )
+    # Name or Keyword.
+    | (?P<name>[A-Z]\w*)
+    | (?P<pythonName>\$[A-Z_]\w*)
+    # Newline or Comment.
+    | (?P<comment>\!.*$)
+    | (?P<newline>$)
   )
   ''')
+
+
+class TielLexeme:
+  """Fortiel lexeme."""
+  def __init__(self, filePath: str, lineNumber) -> None:
+    self.filePath: str = filePath
+    self.lineNumber: int = lineNumber
+    self.spaces: str = ''
+    self.contents: str = ''
+
+
+class TielAtom(TielLexeme):
+  """Fortiel atom lexeme (name or literal)."""
+
+
+class TielName(TielAtom):
+  """Fortiel name lexeme."""
+
+
+class TielLiteral(TielAtom):
+  """Fortiel literal lexeme."""
+
+
+class TielBooleanLiteral(TielLiteral):
+  """Fortiel boolean literal lexeme."""
+
+
+class TielNumericLiteral(TielLiteral):
+  """Fortiel numeric literal lexeme."""
+
+
+class TielOperator(TielLexeme):
+  """Fortiel operator lexeme."""
+
+
+class TielLexer:
+  """Fortiel Lexer."""
+  def __init__(self, filePath: str, lineNumber: int, source: str) -> None:
+    self.filePath: str = filePath
+    self.lineNumber: int = lineNumber
+    self._source: str = source
+
+  def lex(self) -> TielLexeme:
+    """Get next lexeme from the source."""
+    match = GRAMMAR.match(self._source)
+    if match is None:
+      symbol = self._source.lstrip()[0]
+      message = f'unexpected symbol `{symbol}` in the input stream'
+      raise TielGrammarError(message, self.filePath, self.lineNumber)
+    # Create a basic lexeme.
+    lexeme = TielLexeme(self.filePath, self.lineNumber)
+    lexeme.spaces, lexeme.contents = match.group('spaces', 'contents')
+    # Get named groups and filter non-empty ones,
+    # override lexeme type by captured named groups.
+    groups: Dict[str, str] \
+      = {key: value for key, value in match.groupdict().items() if value is not None}
+    if 'booleanLiteral' in groups:
+      lexeme = TielBooleanLiteral(lexeme)
+    elif 'numericLiteral' in groups:
+      lexeme = TielNumericLiteral(lexeme)
+    # Advance position in the source.
+    _, lexemeEnd = match.span()
+    self._source = self._source[lexemeEnd:]
+    return lexeme
+
 
 SYNTAX_DIRECTIVE = _regExpr(r'^\s*\#\@\s*(?P<directive>.*)?$')
 _DIR_HEAD = _regExpr(r'^(?P<word>[^\s]+)(?:\s+(?P<word2>[^\s]+))?')
@@ -404,6 +483,7 @@ class TielParser:
 
   def parse(self) -> TielTree:
     """Parse the source lines."""
+    TielLexer(self._filePath, self._currentLineNumber, '\n'.join(self._lines)).lex()
     tree = TielTree(self._filePath)
     # Add builtin headers based on file extension.
     _, fileExt = path.splitext(self._filePath)
@@ -860,9 +940,9 @@ class TielExecutor:
         # TODO: fix for '*' prefix.
         node.arguments \
           = [name.strip() for name in node.argumentsUnsplit.split(',')]
-      if (duplicate := _findDuplicate(node.arguments)) is not None:
-        message = f'duplicate argument `{duplicate}` of the functional <let>'
-        raise TielRuntimeError(message, node.filePath, node.lineNumber)
+        if (duplicate := _findDuplicate(node.arguments)) is not None:
+          message = f'duplicate argument `{duplicate}` of the functional <let>'
+          raise TielRuntimeError(message, node.filePath, node.lineNumber)
       expression = f'lambda {node.argumentsUnsplit}: {node.expression}'
       function = self._evalExpression(
         expression, node.filePath, node.lineNumber)
