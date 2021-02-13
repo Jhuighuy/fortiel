@@ -161,7 +161,7 @@ class TielOptions:
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 # +-+-+-+-+-+                                           +-+-+-+-+-+ #
-# +-+-+          Fortiel Lexer and Directives Parser          +-+-+ #
+# +-+-+         Fortiel Scanner and Directives Parser         +-+-+ #
 # +-+-+-+-+-+                                           +-+-+-+-+-+ #
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
@@ -181,82 +181,121 @@ GRAMMAR = _regExpr(r'''
       )
     # True or False literal.
     | (?P<booleanLiteral>\.(?:TRUE|FALSE)\.(?:_\w+)?)
-    # Operator or Line Breaks or Line Continuations.
+    # Operator.
     | (?P<operator>\.[A-Z]\w*\.
-      | (?:[\+\-\*\/\(\)\[\]\{\}\%\,\;\&\@]|\:\:?|\=\>?|\<\=?|\>\=?)
+      | (?:[\+\-\*\/\(\)\[\]\{\}\%\,\@]|\:\:?|\=\>?|\<\=?|\>\=?)
       )
     # Name or Keyword.
     | (?P<name>[A-Z]\w*)
     | (?P<pythonName>\$[A-Z_]\w*)
-    # Newline or Comment.
-    | (?P<comment>\!.*$)
-    | (?P<newline>$)
-  )
-  ''')
+    # Line Continuation or Line Break.
+    | (?P<lineContinuation>\&)
+    | (?P<lineBreak>\;|\!.*$|$)
+  )'''
+)
 
 
-class TielLexeme:
-  """Fortiel lexeme."""
-  def __init__(self, filePath: str, lineNumber) -> None:
-    self.filePath: str = filePath
-    self.lineNumber: int = lineNumber
-    self.spaces: str = ''
-    self.contents: str = ''
+class TielToken:
+  """Fortiel token."""
+  def __init__(self, *arguments) -> None:
+    if len(arguments) == 2:
+      filePath, lineNumber = arguments
+      if isinstance(filePath, str) \
+          and isinstance(lineNumber, int):
+        self.filePath: str = filePath
+        self.lineNumber: int = lineNumber
+        self.spaces: str = ''
+        self.contents: str = ''
+        return
+    elif len(arguments) == 1:
+      other, = arguments
+      if isinstance(other, TielToken):
+        self.filePath: str = other.filePath
+        self.lineNumber: int = other.lineNumber
+        self.spaces: str = other.spaces
+        self.contents: str = other.contents
+        return
+    raise ValueError('invalid arguments')
 
 
-class TielAtom(TielLexeme):
-  """Fortiel atom lexeme (name or literal)."""
+class TielAtom(TielToken):
+  """Fortiel atom token (name or literal)."""
 
 
 class TielName(TielAtom):
-  """Fortiel name lexeme."""
+  """Fortiel name token."""
 
 
 class TielLiteral(TielAtom):
-  """Fortiel literal lexeme."""
+  """Fortiel literal token."""
 
 
 class TielBooleanLiteral(TielLiteral):
-  """Fortiel boolean literal lexeme."""
+  """Fortiel boolean literal token."""
 
 
 class TielNumericLiteral(TielLiteral):
-  """Fortiel numeric literal lexeme."""
+  """Fortiel numeric literal token."""
 
 
-class TielOperator(TielLexeme):
-  """Fortiel operator lexeme."""
+class TielStringLiteral(TielLiteral):
+  """Fortiel string literal token."""
 
 
-class TielLexer:
-  """Fortiel Lexer."""
+class TielOperator(TielToken):
+  """Fortiel operator token."""
+
+
+class TielTrivia(TielToken):
+  """Fortiel trivia token (line break, line continuation, comment)."""
+
+
+class TielLineBreak(TielTrivia):
+  """Fortiel line break token (';', '\n' or comment)."""
+
+
+class TielLineContinuation(TielTrivia):
+  """Fortiel line continuation token ('&' or implicit)."""
+
+
+TOKEN_CLASSES = {
+  'name': TielName,
+  'booleanLiteral': TielBooleanLiteral,
+  'numericLiteral': TielNumericLiteral,
+  'stringLiteral': TielStringLiteral,
+  'operator': TielOperator,
+  'lineBreak': TielLineBreak,
+  'lineContinuation': TielLineContinuation,
+}
+
+
+class TielScanner:
+  """Fortiel Scanner."""
   def __init__(self, filePath: str, lineNumber: int, source: str) -> None:
     self.filePath: str = filePath
     self.lineNumber: int = lineNumber
     self._source: str = source
 
-  def lex(self) -> TielLexeme:
-    """Get next lexeme from the source."""
+  def scanToken(self) -> TielToken:
+    """Get next token the source."""
+    # Match the lexeme.
     match = GRAMMAR.match(self._source)
     if match is None:
       symbol = self._source.lstrip()[0]
       message = f'unexpected symbol `{symbol}` in the input stream'
       raise TielGrammarError(message, self.filePath, self.lineNumber)
-    # Create a basic lexeme.
-    lexeme = TielLexeme(self.filePath, self.lineNumber)
-    lexeme.spaces, lexeme.contents = match.group('spaces', 'contents')
-    # Get named groups and filter non-empty ones,
-    # override lexeme type by captured named groups.
-    groups: Dict[str, str] \
-      = {key: value for key, value in match.groupdict().items() if value is not None}
-    if 'booleanLiteral' in groups:
-      lexeme = TielBooleanLiteral(lexeme)
-    elif 'numericLiteral' in groups:
-      lexeme = TielNumericLiteral(lexeme)
     # Advance position in the source.
-    _, lexemeEnd = match.span()
-    self._source = self._source[lexemeEnd:]
-    return lexeme
+    _, tokenEnd = match.span()
+    self._source = self._source[tokenEnd:]
+    # Create a basic lexeme and
+    # override it's class by captured named groups.
+    groups = match.groupdict()
+    token = TielToken(self.filePath, self.lineNumber)
+    token.spaces, token.contents = groups['spaces'], groups['contents']
+    for groupName, derivedTokenClass in TOKEN_CLASSES.items():
+      if groups[groupName] is not None:
+        return derivedTokenClass(token)
+    raise RuntimeError('unmatched lexeme type')
 
 
 SYNTAX_DIRECTIVE = _regExpr(r'^\s*\#\@\s*(?P<directive>.*)?$')
@@ -292,10 +331,12 @@ SYNTAX_CALL = _regExpr(r'^(?P<spaces>\s*)' +
                        r'(?P<argument>[^!]*)(\s*!.*)?$')
 
 
-_MISPLACED_HEADS \
-  = [_makeName(head)
-     for head in ['else', 'else if', 'end if', 'end do',
-                  'section', 'finally', 'pattern', 'end macro']]
+_MISPLACED_HEADS = [
+  _makeName(head) for head in [
+    'else', 'else if', 'end if', 'end do',
+    'section', 'finally', 'pattern', 'end macro'
+  ]
+]
 
 _BUILTIN_HEADERS = {'.f90': 'tiel/syntax.fd'}
 
@@ -483,14 +524,13 @@ class TielParser:
 
   def parse(self) -> TielTree:
     """Parse the source lines."""
-    TielLexer(self._filePath, self._currentLineNumber, '\n'.join(self._lines)).lex()
+    TielScanner(self._filePath, self._currentLineNumber, '\n'.join(self._lines)).scanToken()
     tree = TielTree(self._filePath)
     # Add builtin headers based on file extension.
     _, fileExt = path.splitext(self._filePath)
     builtinPath = _BUILTIN_HEADERS.get(fileExt.lower())
     if builtinPath is not None:
-      useBuiltinNode = TielNodeUse(self._filePath,
-                            self._currentLineNumber)
+      useBuiltinNode = TielNodeUse(self._filePath, self._currentLineNumber)
       useBuiltinNode.usedFilePath = builtinPath
       tree.rootNodes.append(useBuiltinNode)
     # Parse file contents.
