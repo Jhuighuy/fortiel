@@ -19,19 +19,21 @@ pip3 install fortiel
 ## Directives
 Common directive syntax is:
 ```fortran
-#fpp directiveName directiveArguments
+#$ directiveName directiveArguments
+! or
+#@ directiveName directiveArguments
 ```
 where `directiveName` is one of the known preprocessor directives.
-The `#fpp` directive header is treated as a single token, so no
+The `#$` directive header is treated as a single token, so no
 whitespaces are allowed between `#` and `fpp`.
 
-Both `fpp` and `directiveName` are _case-insensitive_
+`directiveName` is _case-insensitive_
 (Python expressions and file paths although are _case-sensitive_), 
 so the following lines are equivalent:
 ```fortran
-#fpp use 'filename'
+#$ use 'filename'
 ! and
-#FpP uSe 'filename'
+#@ uSe 'filename'
 ```
 
 
@@ -39,10 +41,10 @@ so the following lines are equivalent:
 Fortran-style continuation lines `&` are supported within 
 the preprocessor directives:
 ```fortran
-#fpp directivePart &
+#$ directivePart &
         anotherDirectivePart
 ! and
-#fpp directivePart &
+#$ directivePart &
         & anotherDirectivePart
 ```
 
@@ -51,11 +53,11 @@ the preprocessor directives:
 directly the contents of the file 
 located at `filePath` into the current source:
 ```fortran
-#fpp include 'filePath'
+#$ include 'filePath'
 ! or
-#fpp include "filePath"
+#$ include "filePath"
 ! or
-#fpp include <filePath>
+#$ include <filePath>
 ```
 
 
@@ -63,18 +65,18 @@ located at `filePath` into the current source:
 is the same as `include`, but it skips the
 non-directive lines:
 ```fortran
-#fpp use 'filePath'
+#$ use 'filePath'
 ! or
-#fpp use "filePath"
+#$ use "filePath"
 ! or
-#fpp use <filePath>
+#$ use <filePath>
 ```
 
 
 ### `let` directive
 declares a new named variable:
 ```fortran
-#fpp let var = expression
+#$ let var = expression
 ```
 `expression` should be a valid Python 3 expression, 
 that may refer to the previously defined variables, 
@@ -82,7 +84,7 @@ Fortiel builtins and Python 3 builtins.
 
 Functions can be also declared using the `let` directive:
 ```fortran
-#fpp let fun([argument[, anotherArgument]*]) = expression
+#$ let fun([argument[, anotherArgument]*]) = expression
 ```
 
 
@@ -90,7 +92,7 @@ Functions can be also declared using the `let` directive:
 undefines the names, previously defined with 
 the `let` directive:
 ```fortran
-#fpp del var[, anotherVar]*
+#$ del var[, anotherVar]*
 ```
 Builtin names like `__FILE__` or `__LINE__` cannot be undefined.
 
@@ -98,13 +100,13 @@ Builtin names like `__FILE__` or `__LINE__` cannot be undefined.
 ### `if`/`else if`/`else`/`end if` directive
 is a classic conditional directive:
 ```fortran
-#fpp if condition
+#$ if condition
   ! Fortran code.
-#fpp else if condition
+#$ else if condition
   ! Fortran code.
-#fpp else
+#$ else
   ! Fortran code.
-#fpp end if
+#$ end if
 ```
 Note that `else if`, `elseif` and `elif` directives, 
 `end if` and `endif` directives are respectively equivalent.
@@ -113,9 +115,9 @@ Note that `else if`, `elseif` and `elif` directives,
 ### `do`/`end do` directive
 substitutes the source lines multiple times:
 ```fortran 
-#fpp do var = first, last[, step]
+#$ do var = first, last[, step]
   ! Fortran code.
-#fpp end do
+#$ end do
 ```
 `first`, `last` and optional `step` expressions should 
 evaluate to integers.
@@ -128,9 +130,9 @@ Note that `end do` and `enddo` directives are equivalent.
 ### `line` directive
 changes current line number and file path:
 ```fortran
-#fpp [line] lineNumber 'filePath'
+#$ [line] lineNumber 'filePath'
 ! or
-#fpp [line] lineNumber "filePath"
+#$ [line] lineNumber "filePath"
 ```
 
 
@@ -140,7 +142,7 @@ changes current line number and file path:
 ### `` `x` `` substitutions
 Consider the example:
 ```fortran
-#fpp let x = 'b'
+#$ let x = 'b'
 a`x`   ! evaluates to ab;
 `3*x`a ! evaluates to bbba.
 ```
@@ -148,7 +150,7 @@ a`x`   ! evaluates to ab;
 
 ### `@x` substitution
 is a special substitution that becomes handy inside 
-the `#fpp do` loops:
+the `#$ do` loops:
 ```fortran
 @var[,]
 ! or
@@ -160,9 +162,9 @@ the `__INDEX__` amount of times.
 
 Consider the example:
 ```fortran
-#fpp do i = 0, 2
+#$ do i = 0, 2
 @a, b
-#fpp end do
+#$ end do
 ! evaluates to
 b
 a, b
@@ -177,34 +179,34 @@ a, a, b
 ```fortran
 module Distances
     
-  implicit none
+implicit none
 
-#fpp let NUM_RANKS = 2
+#$ let NUM_RANKS = 2
 
-  interface computeSquareDistance
-#fpp do rank = 0, NUM_RANKS
-    module procedure computeSquareDistance{rank}
-#fpp end do    
-  end interface computeSquareDistance
+interface computeSquareDistance
+#$ do rank = 0, NUM_RANKS
+  module procedure computeSquareDistance{rank}
+#$ end do    
+end interface computeSquareDistance
 
 contains
 
-#fpp do rank = 0, NUM_RANKS
-  function computeSquareDistance`rank`(n, u, v) result(d)
-    integer, intent(in) :: n
-    real, intent(in) :: u(@:,:), v(@:,:)
-    real :: d
-    integer :: i
-    d = 0.0
-    do i = 1, n
-    #fpp if rank == 0
-      d = d + (u(i) - v(i))**2
-    #fpp else
-      d = d + sum((u(@:,i) - v(@:,i))**2)
-    #fpp end if
-    end do
-  end function computeSquareDistance`rank`
-#fpp end do    
+#$ do rank = 0, NUM_RANKS
+function computeSquareDistance`rank`(n, u, v) result(d)
+  integer, intent(in) :: n
+  real, intent(in) :: u(@:,:), v(@:,:)
+  real :: d
+  integer :: i
+  d = 0.0
+  do i = 1, n
+#$ if rank == 0
+    d = d + (u(i) - v(i))**2
+#$ else
+    d = d + sum((u(@:,i) - v(@:,i))**2)
+#$ end if
+  end do
+end function computeSquareDistance`rank`
+#$ end do    
 
 end module Distances
 ```
@@ -212,46 +214,46 @@ end module Distances
 ```fortran
 module Distances
     
-  implicit none
+implicit none
 
-  interface computeSquareDistance
-    module procedure computeSquareDistance0
-    module procedure computeSquareDistance1
-    module procedure computeSquareDistance2
-  end interface computeSquareDistance
+interface computeSquareDistance
+  module procedure computeSquareDistance0
+  module procedure computeSquareDistance1
+  module procedure computeSquareDistance2
+end interface computeSquareDistance
 
 contains
 
-  function computeSquareDistance0(n, u, v) result(d)
-    integer, intent(in) :: n
-    real, intent(in) :: u(:), v(:)
-    real :: d
-    integer :: i
-    d = 0.0
-    do i = 1, n
-      d = d + (u(i) - v(i))**2
-    end do
-  end function computeSquareDistance0
-  function computeSquareDistance1(n, u, v) result(d)
-    integer, intent(in) :: n
-    real, intent(in) :: u(:,:), v(:,:)
-    real :: d
-    integer :: i
-    d = 0.0
-    do i = 1, n
-      d = d + sum((u(:,i) - v(:,i))**2)
-    end do
-  end function computeSquareDistance1
-  function computeSquareDistance2(n, u, v) result(d)
-    integer, intent(in) :: n
-    real, intent(in) :: u(:,:,:), v(:,:,:)
-    real :: d
-    integer :: i
-    d = 0.0
-    do i = 1, n
-      d = d + sum((u(:,:,i) - v(:,:,i))**2)
-    end do
-  end function computeSquareDistance2
+function computeSquareDistance0(n, u, v) result(d)
+  integer, intent(in) :: n
+  real, intent(in) :: u(:), v(:)
+  real :: d
+  integer :: i
+  d = 0.0
+  do i = 1, n
+    d = d + (u(i) - v(i))**2
+  end do
+end function computeSquareDistance0
+function computeSquareDistance1(n, u, v) result(d)
+  integer, intent(in) :: n
+  real, intent(in) :: u(:,:), v(:,:)
+  real :: d
+  integer :: i
+  d = 0.0
+  do i = 1, n
+    d = d + sum((u(:,i) - v(:,i))**2)
+  end do
+end function computeSquareDistance1
+function computeSquareDistance2(n, u, v) result(d)
+  integer, intent(in) :: n
+  real, intent(in) :: u(:,:,:), v(:,:,:)
+  real :: d
+  integer :: i
+  d = 0.0
+  do i = 1, n
+    d = d + sum((u(:,:,i) - v(:,:,i))**2)
+  end do
+end function computeSquareDistance2
 
 end module Distances
 ```

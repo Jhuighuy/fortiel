@@ -46,7 +46,6 @@
 Fortiel language translator and executor.
 """
 
-
 import re
 import argparse
 from os import path
@@ -115,8 +114,8 @@ class TielError(Exception):
     self.lineNumber: int = lineNumber
 
   def __str__(self) -> str:
-    message = f'{self.filePath}:{self.lineNumber}:1:\n\n' \
-              + f'Fatal Error: {self.message}'
+    message = f'{self.filePath}:{self.lineNumber}:1:\n\n' + \
+              f'Fatal Error: {self.message}'
     return message
 
 
@@ -125,7 +124,7 @@ class TielGrammarError(TielError):
   def __init__(self, message: str,
                filePath: str, lineNumber: int) -> None:
     super(TielGrammarError, self).__init__(
-      f'syntax error: {message}', filePath, lineNumber)
+      f'Fortiel syntax error: {message}', filePath, lineNumber)
 
 
 class TielSyntaxError(TielError):
@@ -133,7 +132,7 @@ class TielSyntaxError(TielError):
   def __init__(self, message: str,
                filePath: str, lineNumber: int) -> None:
     super(TielSyntaxError, self).__init__(
-      f'syntax error: {message}', filePath, lineNumber)
+      f'Fortiel syntax error: {message}', filePath, lineNumber)
 
 
 class TielRuntimeError(TielError):
@@ -141,7 +140,7 @@ class TielRuntimeError(TielError):
   def __init__(self, message: str,
                filePath: str, lineNumber: int) -> None:
     super(TielRuntimeError, self).__init__(
-      f'runtime error: {message}', filePath, lineNumber)
+      f'Fortiel runtime error: {message}', filePath, lineNumber)
 
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
@@ -156,7 +155,7 @@ class TielOptions:
   def __init__(self) -> None:
     self.defines: List[str] = []
     self.includePaths: List[str] = []
-    self.lineMarkerFormat: Literal['fpp', 'cpp', 'none'] = 'none'
+    self.lineMarkerFormat: Literal['fpp', 'cpp', 'none'] = 'fpp'
 
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
@@ -166,186 +165,11 @@ class TielOptions:
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
-GRAMMAR = _regExpr(r'''
-  ^(?P<spaces>\s*)(?P<contents>
-    # Numeric or BOZ literal.
-      (?P<numericLiteral>\d+(?:\.\d+)?(?:[A-Z][\+\-]?\d+)?(?:_\w+)?
-      | b(?:\'[0-1]+\'|\"[0-1]+\")
-      | o(?:\'[0-7]+\'|\"[0-7]+\")
-      | z(?:\'[0-9A-F]+\'|\"[0-9a-fA-F]+\")
-      )
-    # String or Character literal.
-    | (?P<pythonLiteral>\`(?:\\\'|[^\`])*\`)
-    | (?P<stringLiteral>\'(?:\\\'|[^\'])*\'(?:_\w+)?
-      | \"(?:\\\"|[^\"])*\"(?:_\w+)?
-      )
-    # True or False literal.
-    | (?P<booleanLiteral>\.(?:TRUE|FALSE)\.(?:_\w+)?)
-    # Operator.
-    | (?P<operator>\.[A-Z]\w*\.
-      | (?:[\+\-\*\/\(\)\[\]\{\}\%\,\@]|\:\:?|\=\>?|\<\=?|\>\=?)
-      )
-    # Name or Keyword.
-    | (?P<name>[A-Z]\w*)
-    | (?P<pythonName>\$[A-Z_]\w*)
-    # Line Continuation or Line Break.
-    | (?P<lineContinuation>\&)
-    | (?P<lineBreak>\;|\!.*$|$)
-  )'''
-)
-
-
-class TielToken:
-  """Fortiel token."""
-  def __init__(self, *arguments) -> None:
-    if len(arguments) == 2:
-      filePath, lineNumber = arguments
-      if isinstance(filePath, str) \
-          and isinstance(lineNumber, int):
-        self.filePath: str = filePath
-        self.lineNumber: int = lineNumber
-        self.spaces: str = ''
-        self.contents: str = ''
-        return
-    elif len(arguments) == 1:
-      other, = arguments
-      if isinstance(other, TielToken):
-        self.filePath: str = other.filePath
-        self.lineNumber: int = other.lineNumber
-        self.spaces: str = other.spaces
-        self.contents: str = other.contents
-        return
-    raise ValueError('invalid arguments')
-
-
-class TielAtom(TielToken):
-  """Fortiel atom token (name or literal)."""
-
-
-class TielName(TielAtom):
-  """Fortiel name token."""
-
-
-class TielLiteral(TielAtom):
-  """Fortiel literal token."""
-
-
-class TielBooleanLiteral(TielLiteral):
-  """Fortiel boolean literal token."""
-
-
-class TielNumericLiteral(TielLiteral):
-  """Fortiel numeric literal token."""
-
-
-class TielStringLiteral(TielLiteral):
-  """Fortiel string literal token."""
-
-
-class TielOperator(TielToken):
-  """Fortiel operator token."""
-
-
-class TielTrivia(TielToken):
-  """Fortiel trivia token (line break, line continuation, comment)."""
-
-
-class TielLineBreak(TielTrivia):
-  """Fortiel line break token (';', '\n' or comment)."""
-
-
-class TielLineContinuation(TielTrivia):
-  """Fortiel line continuation token ('&' or implicit)."""
-
-
-TOKEN_CLASSES = {
-  'name': TielName,
-  'booleanLiteral': TielBooleanLiteral,
-  'numericLiteral': TielNumericLiteral,
-  'stringLiteral': TielStringLiteral,
-  'operator': TielOperator,
-  'lineBreak': TielLineBreak,
-  'lineContinuation': TielLineContinuation,
-}
-
-
-class TielScanner:
-  """Fortiel Scanner."""
-  def __init__(self, filePath: str, lineNumber: int, source: str) -> None:
-    self.filePath: str = filePath
-    self.lineNumber: int = lineNumber
-    self._source: str = source
-
-  def scanToken(self) -> TielToken:
-    """Get next token the source."""
-    # Match the lexeme.
-    match = GRAMMAR.match(self._source)
-    if match is None:
-      symbol = self._source.lstrip()[0]
-      message = f'unexpected symbol `{symbol}` in the input stream'
-      raise TielGrammarError(message, self.filePath, self.lineNumber)
-    # Advance position in the source.
-    _, tokenEnd = match.span()
-    self._source = self._source[tokenEnd:]
-    # Create a basic lexeme and
-    # override it's class by captured named groups.
-    groups = match.groupdict()
-    token = TielToken(self.filePath, self.lineNumber)
-    token.spaces, token.contents = groups['spaces'], groups['contents']
-    for groupName, derivedTokenClass in TOKEN_CLASSES.items():
-      if groups[groupName] is not None:
-        return derivedTokenClass(token)
-    raise RuntimeError('unmatched lexeme type')
-
-
-SYNTAX_DIRECTIVE = _regExpr(r'^\s*\#\@\s*(?P<directive>.*)?$')
-_DIR_HEAD = _regExpr(r'^(?P<word>[^\s]+)(?:\s+(?P<word2>[^\s]+))?')
-
-SYNTAX_USE = _regExpr(r'^use\s+(?P<path>' +
-                      r'(?:\"[^\"]+\")|(?:\'[^\']+\')|(?:\<[^\>]+\>))$')
-
-SYNTAX_LET = _regExpr(r'^let\s+(?P<name>[_a-zA-Z]\w*)\s*' +
-                      r'(?P<arguments>\((?:\*{0,2}[_a-zA-Z]\w*' +
-                      r'(?:\s*,\s*\*{0,2}[_a-zA-Z]\w*)*)?\s*\))?\s*' +
-                      r'=\s*(?P<expression>.*)$')
-
-SYNTAX_DEL = _regExpr(r'^del\s+(?P<names>[_a-zA-Z]\w*(?:\s*,\s*[a-zA-Z_]\w*)*)$')
-
-SYNTAX_IF = _regExpr(r'^if\s*(?P<condition>.+)\s*:?$')
-SYNTAX_ELSEIF = _regExpr(r'^else\s*if\s*(?P<condition>.+)\s*:?$')
-SYNTAX_ELSE = _regExpr(r'^else$')
-SYNTAX_ENDIF = _regExpr(r'^end\s*if$')
-
-SYNTAX_DO = _regExpr(r'^do\s+(?P<index>[a-zA-Z_]\w*)\s*=\s*(?P<ranges>.*)\s*:?$')
-SYNTAX_ENDDO = _regExpr(r'^end\s*do$')
-
-SYNTAX_MACRO = _regExpr(r'^macro\s+(?P<name>[a-zA-Z]\w*)(\s+(?P<pattern>\^.*\$))?$')
-SYNTAX_PATTERN = _regExpr(r'^pattern\s+(?P<pattern>\^.*\$)$')
-SYNTAX_SECTION = _regExpr(r'^section\s+(?P<once>once\s+)?' +
-                          r'(?P<name>[a-zA-Z]\w*)(?:\s+(?P<pattern>.*))?$')
-SYNTAX_FINALLY = _regExpr(r'^finally$')
-SYNTAX_ENDMACRO = _regExpr(r'^end\s*macro$')
-
-SYNTAX_CALL = _regExpr(r'^(?P<spaces>\s*)' +
-                       r'@(?P<name>(?:end\s*|else\s*)?[a-zA-Z]\w*)\b' +
-                       r'(?P<argument>[^!]*)(\s*!.*)?$')
-
-
-_MISPLACED_HEADS = [
-  _makeName(head) for head in [
-    'else', 'else if', 'end if', 'end do',
-    'section', 'finally', 'pattern', 'end macro'
-  ]
-]
-
-_BUILTIN_HEADERS = {'.f90': 'tiel/syntax.fd'}
-
 class TielTree:
   """Fortiel syntax tree."""
   def __init__(self, filePath: str) -> None:
     self.filePath: str = filePath
     self.rootNodes: List[TielNode] = []
-    self.mutators: List[Tuple[Pattern[str], str]] = []
 
 
 class TielNode:
@@ -358,21 +182,21 @@ class TielNode:
 class TielNodeLineList(TielNode):
   """The list of code lines syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeLineList, self).__init__(filePath, lineNumber)
     self.lines: List[str] = []
 
 
 class TielNodeUse(TielNode):
   """The USE directive syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeUse, self).__init__(filePath, lineNumber)
     self.usedFilePath: str = ''
 
 
 class TielNodeLet(TielNode):
   """The LET directive syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeLet, self).__init__(filePath, lineNumber)
     self.name: str = ''
     self.argumentsUnsplit: Optional[str] = None
     self.arguments: Optional[List[str]] = None
@@ -382,14 +206,14 @@ class TielNodeLet(TielNode):
 class TielNodeDel(TielNode):
   """The DEL directive syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeDel, self).__init__(filePath, lineNumber)
     self.names: List[str] = []
 
 
 class TielNodeIf(TielNode):
   """The IF/ELSE IF/ELSE/END IF directive syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeIf, self).__init__(filePath, lineNumber)
     self.condition: str = ''
     self.thenNodes: List[TielNode] = []
     self.elseIfNodes: List[TielNodeElseIf] = []
@@ -399,7 +223,7 @@ class TielNodeIf(TielNode):
 class TielNodeElseIf(TielNode):
   """The ELSE IF directive syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeElseIf, self).__init__(filePath, lineNumber)
     self.condition: str = ''
     self.branchNodes: List[TielNode] = []
 
@@ -407,7 +231,7 @@ class TielNodeElseIf(TielNode):
 class TielNodeDo(TielNode):
   """The DO/END DO directive syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeDo, self).__init__(filePath, lineNumber)
     self.indexName: str = ''
     self.ranges: str = ''
     self.loopNodes: List[TielNode] = []
@@ -416,7 +240,7 @@ class TielNodeDo(TielNode):
 class TielNodeMacro(TielNode):
   """The MACRO/END MACRO directive syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeMacro, self).__init__(filePath, lineNumber)
     self.name: str = ''
     self.patternNodes: List[TielNodePattern] = []
     self.sectionNodes: List[TielNodeSection] = []
@@ -424,8 +248,8 @@ class TielNodeMacro(TielNode):
 
   def isConstruct(self) -> bool:
     """Is current macro a construct."""
-    return len(self.sectionNodes) > 0 \
-           or len(self.finallyNodes) > 0
+    return len(self.sectionNodes) > 0 or \
+           len(self.finallyNodes) > 0
 
   def sectionNames(self) -> List[str]:
     """Get a list of the section names."""
@@ -435,7 +259,7 @@ class TielNodeMacro(TielNode):
 class TielNodeSection(TielNode):
   """The SECTION directive syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeSection, self).__init__(filePath, lineNumber)
     self.name: str = ''
     self.once: bool = False
     self.patternNodes: List[TielNodePattern] = []
@@ -444,7 +268,7 @@ class TielNodeSection(TielNode):
 class TielNodePattern(TielNode):
   """The PATTERN directive syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodePattern, self).__init__(filePath, lineNumber)
     self.pattern: Union[str, Pattern[str]] = ''
     self.matchNodes: List[TielNode] = []
 
@@ -452,7 +276,7 @@ class TielNodePattern(TielNode):
 class TielNodeCallSegment(TielNode):
   """The call segment syntax tree node."""
   def __init__(self, filePath: str, lineNumber: int) -> None:
-    super().__init__(filePath, lineNumber)
+    super(TielNodeCallSegment, self).__init__(filePath, lineNumber)
     self.spaces: str = ''
     self.name: str = ''
     self.argument: str = ''
@@ -461,7 +285,7 @@ class TielNodeCallSegment(TielNode):
 class TielNodeCall(TielNode):
   """The call directive syntax tree node."""
   def __init__(self, node: TielNodeCallSegment) -> None:
-    super().__init__(node.filePath, node.lineNumber)
+    super(TielNodeCall, self).__init__(node.filePath, node.lineNumber)
     self.spaces: str = node.spaces
     self.name: str = node.name
     self.argument: str = node.argument
@@ -472,10 +296,54 @@ class TielNodeCall(TielNode):
 class TielNodeCallSection(TielNode):
   """The call directive section syntax tree node."""
   def __init__(self, node: TielNodeCallSegment) -> None:
-    super().__init__(node.filePath, node.lineNumber)
+    super(TielNodeCallSection, self).__init__(node.filePath, node.lineNumber)
     self.name: str = node.name
     self.argument: str = node.argument
     self.capturedNodes: List[TielNode] = []
+
+
+_SYNTAX_DIRECTIVE = _regExpr(r'^\s*\#[@$]\s*(?P<directive>.*)?$')
+_DIR_HEAD = _regExpr(r'^(?P<word>[^\s]+)(?:\s+(?P<word2>[^\s]+))?')
+
+_SYNTAX_USE = _regExpr(
+  r'^USE\s+(?P<path>(?:\"[^\"]+\")|(?:\'[^\']+\')|(?:\<[^\>]+\>))$')
+
+_SYNTAX_LET = _regExpr(
+  r'''^LET\s+(?P<name>[A-Z_]\w*)\s*
+    (?P<arguments>
+      \((?:\*{0,2}[A-Z_]\w*(?:\s*,\s*\*{0,2}[A-Z_]\w*)*)?\s*\))?\s*
+    =\s*(?P<expression>.*)$''')
+
+_SYNTAX_DEL = _regExpr(
+  r'^DEL\s+(?P<names>[A-Z_]\w*(?:\s*,\s*[A-Z_]\w*)*)$')
+
+_SYNTAX_IF = _regExpr(r'^IF\s*(?P<condition>.+)\s*\:?$')
+_SYNTAX_ELSE_IF = _regExpr(r'^ELSE\s*IF\s*(?P<condition>.+)\s*\:?$')
+_SYNTAX_ELSE = _regExpr(r'^ELSE$')
+_SYNTAX_END_IF = _regExpr(r'^END\s*IF$')
+
+_SYNTAX_DO = _regExpr(
+  r'^DO\s+(?P<index>[A-Z_]\w*)\s*=\s*(?P<ranges>.*)\s*\:?$')
+_SYNTAX_END_DO = _regExpr(r'^END\s*DO$')
+
+_SYNTAX_MACRO = _regExpr(
+  r'^MACRO\s+(?P<name>[A-Z]\w*)(\s+(?P<pattern>.*))?$')
+_SYNTAX_PATTERN = _regExpr(r'^PATTERN\s+(?P<pattern>.*)$')
+_SYNTAX_SECTION = _regExpr(
+  r'^SECTION\s+(?P<once>ONCE\s+)?(?P<name>[A-Z]\w*)(?:\s+(?P<pattern>.*))?$')
+_SYNTAX_FINALLY = _regExpr(r'^FINALLY$')
+_SYNTAX_END_MACRO = _regExpr(r'^END\s*MACRO$')
+
+_SYNTAX_CALL = _regExpr(
+  r'''^(?P<spaces>\s*)
+    \@(?P<name>(?:END\s*|ELSE\s*)?[A-Z]\w*)\b(?P<argument>[^!]*)(\s*!.*)?$''')
+
+_MISPLACED_HEADS = [
+  _makeName(head) for head in [
+    'else', 'else if', 'end if', 'end do',
+    'section', 'finally', 'pattern', 'end macro']]
+
+_BUILTIN_HEADERS = {'.f90': 'tiel/syntax.fd'}
 
 
 class TielParser:
@@ -524,7 +392,6 @@ class TielParser:
 
   def parse(self) -> TielTree:
     """Parse the source lines."""
-    TielScanner(self._filePath, self._currentLineNumber, '\n'.join(self._lines)).scanToken()
     tree = TielTree(self._filePath)
     # Add builtin headers based on file extension.
     _, fileExt = path.splitext(self._filePath)
@@ -545,8 +412,8 @@ class TielParser:
       return None
     # ELSE is merged with IF,
     # END is merged with any following word.
-    dirHeadWord, dirHeadWord2 \
-      = _DIR_HEAD.match(directive).group('word', 'word2')
+    dirHeadWord, dirHeadWord2 = \
+      _DIR_HEAD.match(directive).group('word', 'word2')
     dirHead = dirHeadWord.lower()
     if dirHeadWord2 is not None:
       dirHeadWord2 = dirHeadWord2.lower()
@@ -556,9 +423,9 @@ class TielParser:
 
   def _parseStatement(self) -> TielNode:
     """Parse a directive or a line list."""
-    if self._matchesLine(SYNTAX_DIRECTIVE):
+    if self._matchesLine(_SYNTAX_DIRECTIVE):
       return self._parseDirective()
-    if self._matchesLine(SYNTAX_CALL):
+    if self._matchesLine(_SYNTAX_CALL):
       self._parseLineContinuation()
       return self._parseDirectiveCall()
     return self._parseLineList()
@@ -570,14 +437,14 @@ class TielParser:
     while True:
       node.lines.append(self._currentLine)
       self._advanceLine()
-      if self._matchesEnd() or self._matchesLine(SYNTAX_DIRECTIVE, SYNTAX_CALL):
+      if self._matchesEnd() or self._matchesLine(_SYNTAX_DIRECTIVE, _SYNTAX_CALL):
         break
     return node
 
   def _parseDirective(self) -> TielNode:
     """Parse a directive."""
     self._parseLineContinuation()
-    directive = self._matchesLine(SYNTAX_DIRECTIVE)['directive']
+    directive = self._matchesLine(_SYNTAX_DIRECTIVE)['directive']
     dirHead = type(self)._parseHead(directive)
     if dirHead == 'use':
       return self._parseDirectiveUse()
@@ -605,21 +472,20 @@ class TielParser:
       raise TielSyntaxError(message, self._filePath, self._currentLineNumber)
 
   def _matchesDirective(self, *dirHeadList: str) -> Optional[str]:
-    dirMatch = self._matchesLine(SYNTAX_DIRECTIVE)
+    dirMatch = self._matchesLine(_SYNTAX_DIRECTIVE)
     if dirMatch is not None:
       # Parse continuations and rematch.
       self._parseLineContinuation()
-      dirMatch = self._matchesLine(SYNTAX_DIRECTIVE)
+      dirMatch = self._matchesLine(_SYNTAX_DIRECTIVE)
       directive = dirMatch['directive'].lower()
       dirHead = type(self)._parseHead(directive)
       if dirHead in [_makeName(head) for head in dirHeadList]:
         return dirHead
     return None
 
-  def _matchDirectiveSyntax(self,
-                            pattern: Pattern[str],
-                            *groups: str) -> Union[str, Tuple[str, ...]]:
-    directive = self._matchesLine(SYNTAX_DIRECTIVE)['directive'].rstrip()
+  def _matchDirectiveSyntax(
+      self, pattern: Pattern[str], *groups: str) -> Union[str, Tuple[str, ...]]:
+    directive = self._matchesLine(_SYNTAX_DIRECTIVE)['directive'].rstrip()
     match = pattern.match(directive)
     if match is None:
       dirHead = type(self)._parseHead(directive)
@@ -631,8 +497,7 @@ class TielParser:
   def _parseDirectiveUse(self) -> TielNodeUse:
     """Parse USE directive."""
     node = TielNodeUse(self._filePath, self._currentLineNumber)
-    node.usedFilePath \
-      = self._matchDirectiveSyntax(SYNTAX_USE, 'path')
+    node.usedFilePath = self._matchDirectiveSyntax(_SYNTAX_USE, 'path')
     node.usedFilePath = node.usedFilePath[1:-1]
     return node
 
@@ -641,8 +506,8 @@ class TielParser:
     # Note that we are not
     # evaluating or validating define arguments and body here.
     node = TielNodeLet(self._filePath, self._currentLineNumber)
-    node.name, node.argumentsUnsplit, node.expression \
-      = self._matchDirectiveSyntax(SYNTAX_LET, 'name', 'arguments', 'expression')
+    node.name, node.argumentsUnsplit, node.expression = \
+      self._matchDirectiveSyntax(_SYNTAX_LET, 'name', 'arguments', 'expression')
     if node.argumentsUnsplit is not None:
       node.argumentsUnsplit = node.argumentsUnsplit[1:-1].strip()
     return node
@@ -652,7 +517,7 @@ class TielParser:
     # Note that we are not
     # evaluating or validating define name here.
     node = TielNodeDel(self._filePath, self._currentLineNumber)
-    names = self._matchDirectiveSyntax(SYNTAX_DEL, 'names')
+    names = self._matchDirectiveSyntax(_SYNTAX_DEL, 'names')
     node.names = [name.strip() for name in names.split(',')]
     return node
 
@@ -661,22 +526,22 @@ class TielParser:
     # Note that we are not evaluating
     # or validating condition expressions here.
     node = TielNodeIf(self._filePath, self._currentLineNumber)
-    node.condition = self._matchDirectiveSyntax(SYNTAX_IF, 'condition')
+    node.condition = self._matchDirectiveSyntax(_SYNTAX_IF, 'condition')
     while not self._matchesDirective('else if', 'else', 'end if'):
       node.thenNodes.append(self._parseStatement())
     if self._matchesDirective('else if'):
       while not self._matchesDirective('else', 'end if'):
         elseIfNode = TielNodeElseIf(self._filePath, self._currentLineNumber)
-        elseIfNode.condition \
-          = self._matchDirectiveSyntax(SYNTAX_ELSEIF, 'condition')
+        elseIfNode.condition = \
+          self._matchDirectiveSyntax(_SYNTAX_ELSE_IF, 'condition')
         while not self._matchesDirective('else if', 'else', 'end if'):
           elseIfNode.branchNodes.append(self._parseStatement())
         node.elseIfNodes.append(elseIfNode)
     if self._matchesDirective('else'):
-      self._matchDirectiveSyntax(SYNTAX_ELSE)
+      self._matchDirectiveSyntax(_SYNTAX_ELSE)
       while not self._matchesDirective('end if'):
         node.elseNodes.append(self._parseStatement())
-    self._matchDirectiveSyntax(SYNTAX_ENDIF)
+    self._matchDirectiveSyntax(_SYNTAX_END_IF)
     return node
 
   def _parseDirectiveDo(self) -> TielNodeDo:
@@ -684,41 +549,39 @@ class TielParser:
     # Note that we are not evaluating
     # or validating loop bound expressions here.
     node = TielNodeDo(self._filePath, self._currentLineNumber)
-    node.indexName, node.ranges \
-      = self._matchDirectiveSyntax(SYNTAX_DO, 'index', 'ranges')
+    node.indexName, node.ranges = \
+      self._matchDirectiveSyntax(_SYNTAX_DO, 'index', 'ranges')
     while not self._matchesDirective('end do'):
       node.loopNodes.append(self._parseStatement())
-    self._matchDirectiveSyntax(SYNTAX_ENDDO)
+    self._matchDirectiveSyntax(_SYNTAX_END_DO)
     return node
 
   def _parseDirectiveMacro(self) -> TielNodeMacro:
     """Parse MACRO/END MACRO directive."""
     node = TielNodeMacro(self._filePath, self._currentLineNumber)
-    node.name, pattern \
-      = self._matchDirectiveSyntax(SYNTAX_MACRO, 'name', 'pattern')
+    node.name, pattern = \
+      self._matchDirectiveSyntax(_SYNTAX_MACRO, 'name', 'pattern')
     node.name = _makeName(node.name)
-    node.patternNodes \
-      = self._parseDirectivePatternList(node, pattern)
+    node.patternNodes = self._parseDirectivePatternList(node, pattern)
     if self._matchesDirective('section'):
       while not self._matchesDirective('finally', 'end macro'):
         sectionNode = TielNodeSection(self._filePath, self._currentLineNumber)
-        sectionNode.name, sectionNode.once, pattern \
-          = self._matchDirectiveSyntax(SYNTAX_SECTION, 'name', 'once', 'pattern')
+        sectionNode.name, sectionNode.once, pattern = \
+          self._matchDirectiveSyntax(_SYNTAX_SECTION, 'name', 'once', 'pattern')
         sectionNode.name = _makeName(sectionNode.name)
         sectionNode.once = sectionNode.once is not None
-        sectionNode.patternNodes \
-          = self._parseDirectivePatternList(sectionNode, pattern)
+        sectionNode.patternNodes = \
+          self._parseDirectivePatternList(sectionNode, pattern)
         node.sectionNodes.append(sectionNode)
     if self._matchesDirective('finally'):
-      self._matchDirectiveSyntax(SYNTAX_FINALLY)
+      self._matchDirectiveSyntax(_SYNTAX_FINALLY)
       while not self._matchesDirective('end macro'):
         node.finallyNodes.append(self._parseStatement())
-    self._matchDirectiveSyntax(SYNTAX_ENDMACRO)
+    self._matchDirectiveSyntax(_SYNTAX_END_MACRO)
     return node
 
-  def _parseDirectivePatternList(self,
-                                 node: Union[TielNodeMacro, TielNodeSection],
-                                 pattern: str) -> List[TielNodePattern]:
+  def _parseDirectivePatternList(
+      self, node: Union[TielNodeMacro, TielNodeSection], pattern: Optional[str]) -> List[TielNodePattern]:
     """Parse PATTERN directive list."""
     patternNodes: List[TielNodePattern] = []
     if pattern is not None:
@@ -733,8 +596,7 @@ class TielParser:
     if self._matchesDirective('pattern'):
       while not self._matchesDirective('section', 'finally', 'end macro'):
         patternNode = TielNodePattern(self._filePath, self._currentLineNumber)
-        patternNode.pattern \
-          = self._matchDirectiveSyntax(SYNTAX_PATTERN, 'pattern')
+        patternNode.pattern = self._matchDirectiveSyntax(_SYNTAX_PATTERN, 'pattern')
         while not self._matchesDirective('pattern', 'section', 'finally', 'end macro'):
           patternNode.matchNodes.append(self._parseStatement())
         patternNodes.append(patternNode)
@@ -754,11 +616,10 @@ class TielParser:
     """Parse call directive."""
     # Note that we are not evaluating
     # or matching call arguments and sections here.
-    node = TielNodeCallSegment(self._filePath,
-                               self._currentLineNumber)
+    node = TielNodeCallSegment(self._filePath, self._currentLineNumber)
     # Call directive uses different syntax,
     # so it cannot be parsed with common routines.
-    match = self._matchesLine(SYNTAX_CALL)
+    match = self._matchesLine(_SYNTAX_CALL)
     if match is None:
       message = f'invalid call segment syntax'
       raise TielSyntaxError(
@@ -778,12 +639,18 @@ class TielParser:
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
-_NAME_SUB = _regExpr(r'\$\s*(?P<name>[_a-zA-Z]\w*)\b')
+_NAME_SUB = _regExpr(r'\$\s*(?P<name>\w+)\b')
 _LINE_SUB = _regExpr(r'`(?P<expression>[^`]+)`')
-_LOOP_SUB = _regExpr(r'@(?P<expression>:(\s*,)?)')
+_LOOP_SUB = _regExpr(
+  r'(?P<precedingComma>,\s*)?@(?P<expression>:)(?P<trailingComma>\s*,)?')
+_ADVANCED_LOOP_SUB = _regExpr(
+  r'(?P<precedingComma>,\s*)?@{(?P<expression>.*)}@(?P<trailingComma>\s*,)?')
+_ADD_ASSIGN_SUB = _regExpr(
+  r'^(?P<spaces>\s*)(?P<lhs>.+)(?P<operator>[\+\-]=)(?P<rhs>.+)$')
 
-_BUILTIN_NAMES = ['__INDEX__',
-                  '__FILE__', '__LINE__', '__DATE__', '__TIME__']
+_BUILTIN_NAMES = [
+  '__INDEX__',
+  '__FILE__', '__LINE__', '__DATE__', '__TIME__']
 
 
 TielPrinter = Callable[[str], None]
@@ -862,8 +729,8 @@ class TielExecutor:
       value = eval(expression, self._scope)
       return value
     except Exception as error:
-      message = 'Python expression evaluation error: ' \
-                + f'{str(error).replace("<head>", f"expression `{expression}`")}'
+      message = 'Python expression evaluation error: ' + \
+                f'{str(error).replace("<head>", f"expression `{expression}`")}'
       raise TielRuntimeError(message, filePath, lineNumber) from error
 
   def _execNode(self, node: TielNode, printer: TielPrinter):
@@ -885,8 +752,8 @@ class TielExecutor:
     if isinstance(node, TielNodeLineList):
       return self._execNodeLineList(node, printer)
     nodeType = type(node).__name__
-    raise RuntimeError('internal error: '
-                       + f'no evaluator for directive type {nodeType}')
+    raise RuntimeError('internal error: ' +
+                       f'no evaluator for directive type {nodeType}')
 
   def _execLine(self, line: str, filePath: str, lineNumber: int, printer: TielPrinter) -> None:
     """Execute in-line substitutions."""
@@ -898,26 +765,44 @@ class TielExecutor:
     # Evaluate name substitutions.
     def _nameSubReplace(match: Match[str]) -> str:
       name = match['name']
-      value = self._scope.get(name)
-      if value is None:
-        message = f'variable ${name} was not previously declared'
-        raise TielRuntimeError(message, filePath, lineNumber)
-      return str(value)
+      if name.isdecimal():
+        return name
+      else:
+        value = self._scope.get(name)
+        if value is None:
+          message = f'variable ${name} was not previously declared'
+          raise TielRuntimeError(message, filePath, lineNumber)
+        return str(value)
     line = _NAME_SUB.sub(_nameSubReplace, line)
     # Evaluate expression substitutions.
     def _lineSubReplace(match: Match[str]) -> str:
       expression = match['expression']
       return str(self._evalExpression(expression, filePath, lineNumber))
     line = _LINE_SUB.sub(_lineSubReplace, line)
-    # Evaluate <@:> substitutions.
+    # Evaluate <@:> and <@{}@> substitutions.
     def _loopSubReplace(match: Match[str]) -> str:
-      expression = match['expression']
       index = self._scope.get('__INDEX__')
       if index is None:
-        message = '<@:> substitution outside of the <do> loop body'
+        message = '<@{}@> substitution outside of the <do> loop body'
         raise TielRuntimeError(message, filePath, lineNumber)
-      return str(index * expression)
+      expression, precedingComma, trailingComma = \
+        match.group('expression', 'precedingComma', 'trailingComma')
+      if index == 0:
+        # Empty substitution, replace with a single comma if needed.
+        return ',' if precedingComma is not None and trailingComma is not None else ''
+      else:
+        result = ','.join([
+          e.replace('$$', str(i)) for i, e in enumerate(index * [expression])])
+        return (precedingComma or '') + result + (trailingComma or '')
     line = _LOOP_SUB.sub(_loopSubReplace, line)
+    line = _ADVANCED_LOOP_SUB.sub(_loopSubReplace, line)
+    # Evaluate <+=> and <-=> substitutions.
+    def _addAssignReplace(match: Match[str]):
+      spaces, lhs, operator, rhs = \
+        match.group('spaces', 'lhs', 'operator', 'rhs')
+      lhs, rhs = lhs.rstrip(), rhs.lstrip()
+      return f'{spaces}{lhs} = {lhs} {operator[0]} {rhs}'
+    line = _ADD_ASSIGN_SUB.sub(_addAssignReplace, line)
     # Output the processed line.
     printer(line)
 
@@ -936,8 +821,8 @@ class TielExecutor:
     """Execute USE node."""
     # Resolve file path.
     nodeDirPath = path.dirname(node.filePath)
-    usedFilePath = _findFile(node.usedFilePath,
-                             self._options.includePaths + [nodeDirPath])
+    usedFilePath = _findFile(
+      node.usedFilePath, self._options.includePaths + [nodeDirPath])
     if usedFilePath is None:
       message = f'`{node.usedFilePath}` was not found in the include paths'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
@@ -978,8 +863,8 @@ class TielExecutor:
       # Evaluate variable as lambda function.
       if node.arguments is None:
         # TODO: fix for '*' prefix.
-        node.arguments \
-          = [name.strip() for name in node.argumentsUnsplit.split(',')]
+        node.arguments = [
+          name.strip() for name in node.argumentsUnsplit.split(',')]
         if (duplicate := _findDuplicate(node.arguments)) is not None:
           message = f'duplicate argument `{duplicate}` of the functional <let>'
           raise TielRuntimeError(message, node.filePath, node.lineNumber)
@@ -1021,25 +906,25 @@ class TielExecutor:
     # Evaluate loop ranges.
     ranges = self._evalExpression(
       node.ranges, node.filePath, node.lineNumber)
-    if not (isinstance(ranges, tuple)
-            and (2 <= len(ranges) <= 3)
-            and list(map(type, ranges)) == len(ranges) * [int]):
-      message = 'tuple of two or three integers inside the <do> ' \
-                + f'directive ranges is expected, got `{node.ranges}`'
+    if not (isinstance(ranges, tuple) and (2 <= len(ranges) <= 3) and
+            list(map(type, ranges)) == len(ranges) * [int]):
+      message = 'tuple of two or three integers inside the <do> ' + \
+                f'directive ranges is expected, got `{node.ranges}`'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
     start, stop = ranges[0:2]
     step = ranges[2] if len(ranges) == 3 else 1
-    # Save previous index value
-    # in case we are inside the nested loop.
-    prevIndex = self._scope.get('__INDEX__')
-    for index in range(start, stop + 1, step):
-      # Execute loop body.
-      self._scope[node.indexName] = index
-      self._scope['__INDEX__'] = index
-      self._execNodeList(node.loopNodes, printer)
-    del self._scope[node.indexName]
-    # Restore previous index value.
-    self._scope['__INDEX__'] = prevIndex
+    if stop >= start:
+      # Save previous index value
+      # in case we are inside the nested loop.
+      prevIndex = self._scope.get('__INDEX__')
+      for index in range(start, stop + 1, step):
+        # Execute loop body.
+        self._scope[node.indexName] = index
+        self._scope['__INDEX__'] = index
+        self._execNodeList(node.loopNodes, printer)
+      del self._scope[node.indexName]
+      # Restore previous index value.
+      self._scope['__INDEX__'] = prevIndex
 
   def _execNodeMacro(self, node: TielNodeMacro) -> None:
     """Execute MACRO/END MACRO node."""
@@ -1052,8 +937,8 @@ class TielExecutor:
         message = f'section name cannot be the same with macro `{node.name}` name'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
       if (duplicate := _findDuplicate(sections)) is not None:
-        message = f'duplicate section `{duplicate}` ' \
-                  + f'of the macro construct `{node.name}`'
+        message = f'duplicate section `{duplicate}` ' + \
+                  f'of the macro construct `{node.name}`'
         raise TielRuntimeError(message, node.filePath, node.lineNumber)
     # Add macro to the scope.
     self._macros[node.name] = node
@@ -1074,8 +959,8 @@ class TielExecutor:
       sectionNode = next(sectionIter, None)
       for callSectionNode in node.callSectionNodes:
         # Find a section node match.
-        while sectionNode is not None \
-            and sectionNode.name != callSectionNode.name:
+        while sectionNode is not None and \
+            sectionNode.name != callSectionNode.name:
           sectionNode = next(sectionIter, None)
         if sectionNode is None:
           message = f'unexpected call section `{callSectionNode.name}`'
@@ -1091,10 +976,9 @@ class TielExecutor:
       # Execute finally section.
       self._execNodeList(macroNode.finallyNodes, _spacedPrinter)
 
-  def _execNodePatternList(self,
-                           node: Union[TielNodeCall, TielNodeCallSection],
-                           macroNode: Union[TielNodeMacro, TielNodeSection],
-                           printer: TielPrinter) -> None:
+  def _execNodePatternList(
+      self, node: Union[TielNodeCall, TielNodeCallSection],
+      macroNode: Union[TielNodeMacro, TielNodeSection], printer: TielPrinter) -> None:
     # Find a match in macro or section patterns
     # and execute macro primary section or current section.
     for patternNode in macroNode.patternNodes:
@@ -1104,8 +988,7 @@ class TielExecutor:
         self._execNodeList(patternNode.matchNodes, printer)
         break
     else:
-      message = f'macro `{macroNode.name}` ' \
-                + 'call does not match any pattern'
+      message = f'macro `{macroNode.name}` call does not match any pattern'
       raise TielRuntimeError(message, node.filePath, node.lineNumber)
 
 
@@ -1116,9 +999,9 @@ class TielExecutor:
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
-def tielPreprocess(filePath: str,
-                   outputFilePath: str,
-                   options: TielOptions = TielOptions()) -> None:
+def tielPreprocess(
+    filePath: str,  outputFilePath: str,
+    options: TielOptions = TielOptions()) -> None:
   """Preprocess the source file."""
   with open(filePath, 'r') as file:
     lines = file.read().splitlines()
@@ -1146,7 +1029,7 @@ def main() -> None:
   # Line marker format.
   argParser.add_argument(
     '-M', '--line_markers',
-    choices=['fpp', 'cpp', 'none'], default='fpp',
+    choices=['fpp', 'cpp', 'none'], default=TielOptions().lineMarkerFormat,
     help='line markers format')
   # Input and output file paths.
   argParser.add_argument(
