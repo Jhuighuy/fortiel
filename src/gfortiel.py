@@ -53,7 +53,7 @@ import sys
 import glob
 import tempfile
 from typing import List, Tuple
-from fortiel import FortielPreprocess, FortielError
+from fortiel import fortiel_preprocess, FortielError
 
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
@@ -95,7 +95,7 @@ def _gfortiel_parse_arguments() -> Tuple[List[str], List[str]]:
 def _gfortiel_preprocess(file_path: str, output_file_path: str) -> int:
     """Preprocess the source or output errors in GNU Fortran style."""
     try:
-        FortielPreprocess(file_path, output_file_path)
+        fortiel_preprocess(file_path, output_file_path)
         return _EXIT_SUCCESS
     except FortielError as error:
         line_number, message = error.line_number, error.message
