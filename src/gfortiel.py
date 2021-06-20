@@ -53,7 +53,7 @@ import sys
 import glob
 import tempfile
 from typing import List, Tuple
-from fortiel import tielPreprocess, TielError
+from fortiel import FortielPreprocess, FortielError
 
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
@@ -69,70 +69,66 @@ _EXIT_ERROR = 1
 _FORTRAN_EXT = [".f", ".for", ".f90", ".f03", ".f08"]
 
 
-def _gfortielParseArguments() -> Tuple[List[str], List[str]]:
-  """Parse GNU Fortran options and extract input files."""
-  otherArgs: List[str] = []
-  filePaths: List[str] = []
-  for arg in sys.argv[1:]:
-    isSourceFilePath = \
-      not arg.startswith("-") \
-           and (len(otherArgs) == 0 or otherArgs[-1] != "-o")
-    if isSourceFilePath:
-      ext = os.path.splitext(arg)[1]
-      isSourceFilePath = ext.lower() in _FORTRAN_EXT
-    # Append the argument or the file path.
-    if isSourceFilePath:
-      matchedPaths = glob.glob(arg)
-      if matchedPaths:
-        filePaths += matchedPaths
-      else:
-        filePaths.append(arg)
-    else:
-      otherArgs.append(arg)
-  return otherArgs, filePaths
+def _gfortiel_parse_arguments() -> Tuple[List[str], List[str]]:
+    """Parse GNU Fortran options and extract input files."""
+    other_args: List[str] = []
+    file_paths: List[str] = []
+    for arg in sys.argv[1:]:
+        is_source_file_path = \
+            not arg.startswith("-") \
+            and (len(other_args) == 0 or other_args[-1] != "-o")
+        if is_source_file_path:
+            ext = os.path.splitext(arg)[1]
+            is_source_file_path = ext.lower() in _FORTRAN_EXT
+        # Append the argument or the file path.
+        if is_source_file_path:
+            matched_paths = glob.glob(arg)
+            if matched_paths:
+                file_paths += matched_paths
+            else:
+                file_paths.append(arg)
+        else:
+            other_args.append(arg)
+    return other_args, file_paths
 
 
-def _gfortielPreprocess(filePath: str,
-                        outputFilePath: str) -> int:
-  """Preprocess the source or output errors in GNU Fortran style."""
-  try:
-    tielPreprocess(filePath, outputFilePath)
-    return _EXIT_SUCCESS
-  except TielError as error:
-    lineNumber, message = error.lineNumber, error.message
-    errorMessage \
-      = f'{filePath}:{lineNumber}:{1}:\n\n\nFatal Error: {message}'
-    print(errorMessage, file=sys.stderr, flush=True)
-    return _EXIT_ERROR
+def _gfortiel_preprocess(file_path: str, output_file_path: str) -> int:
+    """Preprocess the source or output errors in GNU Fortran style."""
+    try:
+        FortielPreprocess(file_path, output_file_path)
+        return _EXIT_SUCCESS
+    except FortielError as error:
+        line_number, message = error.line_number, error.message
+        error_message = f'{file_path}:{line_number}:{1}:\n\n\nFatal Error: {message}'
+        print(error_message, file=sys.stderr, flush=True)
+        return _EXIT_ERROR
 
 
 def main() -> None:
-  """GNU Fortiel compiler entry point."""
-  otherArgs, filePaths = _gfortielParseArguments()
-  # Preprocess the sources.
-  exitCode = 0
-  outputFilePaths = []
-  for filePath in filePaths:
-    with tempfile.NamedTemporaryFile() as outputFile:
-      outputFilePath \
-        = outputFile.name + os.path.splitext(filePath)[1]
-    fileExitCode = _gfortielPreprocess(filePath, outputFilePath)
-    if fileExitCode == _EXIT_SUCCESS:
-      outputFilePaths.append(outputFilePath)
-    exitCode |= fileExitCode
-  # Compile the preprocessed sources.
-  if exitCode == _EXIT_SUCCESS:
-    compilerCommand \
-      = f'gfortran {" ".join(otherArgs)} {" ".join(outputFilePaths)}'
-    exitCode = os.system(compilerCommand)
-    sys.stderr.flush()
-  # Delete the generated preprocessed sources and exit.
-  try:
-    for outputFilePath in outputFilePaths:
-      os.remove(outputFilePath)
-  finally:
-    sys.exit(exitCode)
+    """GNU Fortiel compiler entry point."""
+    other_args, file_paths = _gfortiel_parse_arguments()
+    # Preprocess the sources.
+    exit_code = 0
+    output_file_paths = []
+    for filePath in file_paths:
+        with tempfile.NamedTemporaryFile() as outputFile:
+            output_file_path = outputFile.name + os.path.splitext(filePath)[1]
+        file_exit_code = _gfortiel_preprocess(filePath, output_file_path)
+        if file_exit_code == _EXIT_SUCCESS:
+            output_file_paths.append(output_file_path)
+        exit_code |= file_exit_code
+    # Compile the preprocessed sources.
+    if exit_code == _EXIT_SUCCESS:
+        compiler_command = f'gfortran {" ".join(other_args)} {" ".join(output_file_paths)}'
+        exit_code = os.system(compiler_command)
+        sys.stderr.flush()
+    # Delete the generated preprocessed sources and exit.
+    try:
+        for output_file_path in output_file_paths:
+            os.remove(output_file_path)
+    finally:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":
-  main()
+    main()
