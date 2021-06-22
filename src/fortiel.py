@@ -682,25 +682,6 @@ class FortielExecutor:
         self._imported_files_paths: Set[str] = set()
         self._options: FortielOptions = options
 
-    def exec_tree(self, tree: FortielTree, printer: FortielPrinter) -> None:
-        """Execute the syntax tree or the syntax tree node."""
-        # Print primary line marker.
-        if self._options.line_marker_format == 'fpp':
-            printer(f'# 1 "{tree.file_path}" 1')
-        elif self._options.line_marker_format == 'cpp':
-            printer(f'#line 1 "{tree.file_path}" 1')
-        # Execute tree nodes.
-        self._execute_node_list(tree.root_nodes, printer)
-
-    def _execute_node_list(self, nodes: List[FortielNode], printer: FortielPrinter) -> None:
-        """Execute the node list."""
-        index = 0
-        while index < len(nodes):
-            if isinstance(nodes[index], FortielNodeCallSegment):
-                self._resolve_call_segment(index, nodes)
-            self._execute_node(nodes[index], printer)
-            index += 1
-
     def _resolve_call_segment(self, index: int, nodes: List[FortielNode]) -> None:
         """Resolve call segments."""
         node = cast(FortielNodeCallSegment, nodes[index])
@@ -738,7 +719,7 @@ class FortielExecutor:
                 message = f'expected `@{end_name}` call segment'
                 raise FortielRuntimeError(message, node.file_path, node.line_number)
 
-    def _eval_expression(self, expression: str, file_path: str, line_number: int) -> Any:
+    def _evaluate_expression(self, expression: str, file_path: str, line_number: int) -> Any:
         """Evaluate Python expression."""
         try:
             value = eval(expression, self._scope)
@@ -748,32 +729,7 @@ class FortielExecutor:
             message = f'Python expression evaluation error: {e}'
             raise FortielRuntimeError(message, file_path, line_number) from error
 
-    def _execute_node(self, node: FortielNode, printer: FortielPrinter):
-        """Execute a node."""
-        if isinstance(node, FortielNodeUse):
-            return self._execute_node_use(node)
-        if isinstance(node, FortielNodeLet):
-            return self._execute_node_let(node)
-        if isinstance(node, FortielNodeDefine):
-            return self._execute_node_define(node)
-        if isinstance(node, FortielNodeDel):
-            return self._eval_node_del(node)
-        if isinstance(node, FortielNodeIf):
-            return self._execute_node_if(node, printer)
-        if isinstance(node, FortielNodeDo):
-            return self._execute_node_do(node, printer)
-        if isinstance(node, FortielNodeFor):
-            return self._execute_node_for(node, printer)
-        if isinstance(node, FortielNodeMacro):
-            return self._execute_node_macro(node)
-        if isinstance(node, FortielNodeCall):
-            return self._execute_node_call(node, printer)
-        if isinstance(node, FortielNodeLineList):
-            return self._execute_node_line_list(node, printer)
-        node_type = type(node).__name__
-        raise RuntimeError(f'internal error: no evaluator for directive type {node_type}')
-
-    def _eval_line(self, line: str, file_path: str, line_number: int) -> str:
+    def _evaluate_line(self, line: str, file_path: str, line_number: int) -> str:
         """Execute in-line substitutions."""
         # Skip comment lines
         # (TODO: no inline comments for now).
@@ -792,8 +748,7 @@ class FortielExecutor:
                 # Empty substitution, replace with a single comma if needed.
                 return ',' if precedingComma is not None and trailingComma is not None else ''
             else:
-                result = ','.join([
-                    e.replace('$$', str(i + 1)) for i, e in enumerate(index * [expression])])
+                result = ','.join([e.replace('$$', str(i + 1)) for i, e in enumerate(index * [expression])])
                 return (precedingComma or '') + result + (trailingComma or '')
 
         line = _LOOP_SUB.sub(_loopSubReplace, line)
@@ -802,7 +757,7 @@ class FortielExecutor:
         # Evaluate expression substitutions.
         def _lineSubReplace(match: Match[str]) -> str:
             expression = match['expression']
-            value = self._eval_expression(expression, file_path, line_number)
+            value = self._evaluate_expression(expression, file_path, line_number)
             # Put negative integer into parentheses.
             if isinstance(value, (int, float)) and (value < 0):
                 value = f'({value})'
@@ -838,8 +793,7 @@ class FortielExecutor:
 
         # Evaluate <+=> and <-=> substitutions.
         def _addAssignReplace(match: Match[str]):
-            spaces, lhs, operator, rhs = \
-                match.group('spaces', 'lhs', 'operator', 'rhs')
+            spaces, lhs, operator, rhs = match.group('spaces', 'lhs', 'operator', 'rhs')
             lhs, rhs = lhs.rstrip(), rhs.lstrip()
             return f'{spaces}{lhs} = {lhs} {operator[0]} {rhs}'
 
@@ -847,6 +801,50 @@ class FortielExecutor:
 
         # Output the processed line.
         return line
+
+    def execute_tree(self, tree: FortielTree, printer: FortielPrinter) -> None:
+        """Execute the syntax tree or the syntax tree node."""
+        # Print primary line marker.
+        if self._options.line_marker_format == 'fpp':
+            printer(f'# 1 "{tree.file_path}" 1')
+        elif self._options.line_marker_format == 'cpp':
+            printer(f'#line 1 "{tree.file_path}" 1')
+        # Execute tree nodes.
+        self._execute_node_list(tree.root_nodes, printer)
+
+    def _execute_node(self, node: FortielNode, printer: FortielPrinter):
+        """Execute a node."""
+        if isinstance(node, FortielNodeUse):
+            return self._execute_node_use(node)
+        if isinstance(node, FortielNodeLet):
+            return self._execute_node_let(node)
+        if isinstance(node, FortielNodeDefine):
+            return self._execute_node_define(node)
+        if isinstance(node, FortielNodeDel):
+            return self._eval_node_del(node)
+        if isinstance(node, FortielNodeIf):
+            return self._execute_node_if(node, printer)
+        if isinstance(node, FortielNodeDo):
+            return self._execute_node_do(node, printer)
+        if isinstance(node, FortielNodeFor):
+            return self._execute_node_for(node, printer)
+        if isinstance(node, FortielNodeMacro):
+            return self._execute_node_macro(node)
+        if isinstance(node, FortielNodeCall):
+            return self._execute_node_call(node, printer)
+        if isinstance(node, FortielNodeLineList):
+            return self._execute_node_line_list(node, printer)
+        node_type = type(node).__name__
+        raise RuntimeError(f'internal error: no evaluator for directive type {node_type}')
+
+    def _execute_node_list(self, nodes: List[FortielNode], printer: FortielPrinter) -> None:
+        """Execute the node list."""
+        index = 0
+        while index < len(nodes):
+            if isinstance(nodes[index], FortielNodeCallSegment):
+                self._resolve_call_segment(index, nodes)
+            self._execute_node(nodes[index], printer)
+            index += 1
 
     def _execute_node_line_list(self, node: FortielNodeLineList, printer: FortielPrinter) -> None:
         """Execute line block."""
@@ -857,13 +855,14 @@ class FortielExecutor:
             printer(f'#line {node.line_number} "{node.file_path}"')
         # Print lines.
         for line_number, line in enumerate(node.lines, start=node.line_number):
-            printer(self._eval_line(line, node.file_path, line_number))
+            printer(self._evaluate_line(line, node.file_path, line_number))
 
     def _execute_node_use(self, node: FortielNodeUse) -> None:
         """Execute USE node."""
         # Resolve file path.
         node_dir_path = path.dirname(node.file_path)
-        imported_file_path = _find_file(node.imported_file_path, self._options.include_paths + [node_dir_path])
+        imported_file_path = _find_file(
+            node.imported_file_path, self._options.include_paths + [node_dir_path])
         if imported_file_path is None:
             message = f'`{node.imported_file_path}` was not found in the include paths'
             raise FortielRuntimeError(message, node.file_path, node.line_number)
@@ -882,7 +881,7 @@ class FortielExecutor:
             # Parse and execute the dependency.
             # ( Use a dummy printer in order to skip code lines. )
             imported_tree = FortielParser(node.imported_file_path, imported_file_lines).parse()
-            self.exec_tree(imported_tree, (lambda _: None))
+            self.execute_tree(imported_tree, (lambda _: None))
 
     def _execute_node_let(self, node: FortielNodeLet) -> None:
         """Execute LET node."""
@@ -895,8 +894,8 @@ class FortielExecutor:
             raise FortielRuntimeError(message, node.file_path, node.line_number)
         if node.arguments is None:
             # Evaluate variable.
-            value = self._eval_expression(node.expression, node.file_path, node.line_number)
-            self._scope[node.name] = value
+            self._scope[node.name] = \
+                self._evaluate_expression(node.expression, node.file_path, node.line_number)
         else:
             # Evaluate variable as lambda function.
             if not isinstance(node.arguments, list):
@@ -906,7 +905,7 @@ class FortielExecutor:
                     message = f'duplicate argument `{arg}` of the functional <let>'
                     raise FortielRuntimeError(message, node.file_path, node.line_number)
             expression = f'lambda {node.arguments}: {node.expression}'
-            function = self._eval_expression(expression, node.file_path, node.line_number)
+            function = self._evaluate_expression(expression, node.file_path, node.line_number)
             self._scope[node.name] = function
 
     def _execute_node_define(self, node: FortielNodeDefine) -> None:
@@ -916,7 +915,7 @@ class FortielExecutor:
             message = f'builtin name <{node.name}> can not be redefined'
             raise FortielRuntimeError(message, node.file_path, node.line_number)
         # Evaluate segment.
-        value = self._eval_line(node.segment, node.file_path, node.line_number)
+        value = self._evaluate_line(node.segment, node.file_path, node.line_number)
         self._scope[node.name] = value
 
     def _eval_node_del(self, node: FortielNodeDel) -> None:
@@ -933,12 +932,12 @@ class FortielExecutor:
     def _execute_node_if(self, node: FortielNodeIf, printer: FortielPrinter) -> None:
         """Execute IF/ELSE IF/ELSE/END IF node."""
         # Evaluate condition and execute THEN branch.
-        if self._eval_expression(node.condition, node.file_path, node.line_number):
+        if self._evaluate_expression(node.condition, node.file_path, node.line_number):
             self._execute_node_list(node.then_nodes, printer)
         else:
             # Evaluate condition and execute ELSE IF branches.
             for elif_node in node.elif_nodes:
-                if self._eval_expression(elif_node.condition, elif_node.file_path, elif_node.line_number):
+                if self._evaluate_expression(elif_node.condition, elif_node.file_path, elif_node.line_number):
                     self._execute_node_list(elif_node.then_nodes, printer)
                     break
             else:
@@ -948,7 +947,7 @@ class FortielExecutor:
     def _execute_node_do(self, node: FortielNodeDo, printer: FortielPrinter) -> None:
         """Execute DO/END DO node."""
         # Evaluate loop ranges.
-        ranges = self._eval_expression(
+        ranges = self._evaluate_expression(
             node.ranges, node.file_path, node.line_number)
         if not (isinstance(ranges, tuple) and (2 <= len(ranges) <= 3) and
                 list(map(type, ranges)) == len(ranges) * [int]):
@@ -974,7 +973,7 @@ class FortielExecutor:
     def _execute_node_for(self, node: FortielNodeFor, printer: FortielPrinter) -> None:
         """Execute FOR/END FOR node."""
         # Evaluate loop.
-        iterable = self._eval_expression(node.ranges_expression, node.file_path, node.line_number)
+        iterable = self._evaluate_expression(node.ranges_expression, node.file_path, node.line_number)
         if isinstance(iterable, dict):
             for key, value in iterable.items():
                 if len(node.index_names) == 1:
@@ -1014,7 +1013,6 @@ class FortielExecutor:
 
     def _execute_node_call(self, node: FortielNodeCall, printer: FortielPrinter) -> None:
         """Execute CALL node."""
-        macro_node = self._macros[node.name]
 
         # Use a special print function
         # in order to keep indentations from the original source.
@@ -1022,16 +1020,17 @@ class FortielExecutor:
         def _spaced_printer(line: str):
             printer(line if line.startswith('#') else node.spaces + line)
 
+        macro_node = self._macros[node.name]
         self._execute_node_pattern_list(node, macro_node, _spaced_printer)
         # Match and evaluate macro sections.
         if macro_node.construct():
             self._execute_node_list(node.captured_nodes, printer)
-            section_iter = iter(macro_node.section_nodes)
-            section_node = next(section_iter, None)
+            section_iterator = iter(macro_node.section_nodes)
+            section_node = next(section_iterator, None)
             for call_section_node in node.call_section_nodes:
                 # Find a section node match.
                 while section_node is not None and section_node.name != call_section_node.name:
-                    section_node = next(section_iter, None)
+                    section_node = next(section_iterator, None)
                 if section_node is None:
                     message = f'unexpected call section `{call_section_node.name}`'
                     raise FortielRuntimeError(message, call_section_node.file_path, call_section_node.line_number)
@@ -1040,9 +1039,10 @@ class FortielExecutor:
                 self._execute_node_list(call_section_node.captured_nodes, printer)
                 # Advance a section for sections with 'once' attribute.
                 if section_node.once:
-                    section_node = next(section_iter, None)
+                    section_node = next(section_iterator, None)
             # Execute finally section.
             self._execute_node_list(macro_node.finally_nodes, _spaced_printer)
+
 
     def _execute_node_pattern_list(
             self, node: Union[FortielNodeCall, FortielNodeCallSection],
@@ -1078,7 +1078,7 @@ def fortiel_preprocess(
         def _printer(line):
             print(line, file=output_file)
 
-        FortielExecutor(options).exec_tree(tree, _printer)
+        FortielExecutor(options).execute_tree(tree, _printer)
 
 
 def main() -> None:
