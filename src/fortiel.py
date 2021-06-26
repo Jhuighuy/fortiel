@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
-# +-+-+-+-+                                                       +-+-+-+-+ #
-# +-+-+-+-+     ,------.               ,--.  ,--.       ,--.      +-+-+-+-+ #
-# +-+-+-+-+     |  .---',---. ,--.--.,-'  '-.`--' ,---. |  |      +-+-+-+-+ #
-# +-+-+-+-+     |  `--,| .-. ||  .--''-.  .-',--.| .-. :|  |      +-+-+-+-+ #
-# +-+-+-+-+     |  |`  ' '-' '|  |     |  |  |  |\   --.|  |      +-+-+-+-+ #
-# +-+-+-+-+     `--'    `---' `--'     `--'  `--' `----'`--'      +-+-+-+-+ #
-# +-+-+-+-+                                                       +-+-+-+-+ #
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
-# +-+-+-+-+                                                       +-+-+-+-+ #
-# +-+                                                                   +-+ #
+# pylint: disable=too-many-lines, eval-used
+
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# =-=-=-=-=                                                       =-=-=-=-= #
+# =-=-=-=-=     ,------.               ,--.  ,--.       ,--.      =-=-=-=-= #
+# =-=-=-=-=     |  .---',---. ,--.--.,-'  '-.`--' ,---. |  |      =-=-=-=-= #
+# =-=-=-=-=     |  `--,| .-. ||  .--''-.  .-',--.| .-. :|  |      =-=-=-=-= #
+# =-=-=-=-=     |  |`  ' '-' '|  |     |  |  |  |\   --.|  |      =-=-=-=-= #
+# =-=-=-=-=     `--'    `---' `--'     `--'  `--' `----'`--'      =-=-=-=-= #
+# =-=-=-=-=                                                       =-=-=-=-= #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# =-=-=-=-=                                                       =-=-=-=-= #
+# =-=                                                                   =-= #
 # +                                                                       + #
 #                                                                           #
 # Copyright (C) 2021 Oleg Butakov                                           #
@@ -35,9 +37,9 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                    #
 #                                                                           #
 # +                                                                       + #
-# +-+                                                                   +-+ #
-# +-+-+-+-+                                                       +-+-+-+-+ #
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# =-=                                                                   =-= #
+# =-=-=-=-=                                                       =-=-=-=-= #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
 """
@@ -52,11 +54,11 @@ from typing import (cast, List, Set, Dict, Tuple, Any, Union,
                     Optional, Callable, Literal, Pattern, Match)
 
 
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+                Fortiel Helper Routines                +-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=                Fortiel Helper Routines                =-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
 def _reg_expr(pattern: str) -> Pattern[str]:
@@ -95,11 +97,11 @@ def _find_duplicate(strings: List[str]) -> Optional[str]:
     return None
 
 
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+            Fortiel Exceptions and Messages            +-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=            Fortiel Exceptions and Messages            =-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
 class FortielError(Exception):
@@ -111,36 +113,36 @@ class FortielError(Exception):
         self.line_number: int = line_number
 
     def __str__(self) -> str:
-        f, l, m = self.file_path, self.line_number, self.message
-        return f'{f}:{l}:1:\n\nFatal Error: {m}'
+        # Format matched GFortran error messages.
+        return f'{self.file_path}:{self.line_number}:1:\n\nFatal Error: {self.message}'
 
 
 class FortielGrammarError(FortielError):
     """Fortiel grammar error."""
     def __init__(self, message: str, file_path: str, line_number: int) -> None:
-        super(FortielGrammarError, self).__init__(
+        super().__init__(
             f'Fortiel syntax error: {message}', file_path, line_number)
 
 
 class FortielSyntaxError(FortielError):
     """Fortiel syntax error."""
     def __init__(self, message: str, file_path: str, line_number: int) -> None:
-        super(FortielSyntaxError, self).__init__(
+        super().__init__(
             f'Fortiel syntax error: {message}', file_path, line_number)
 
 
 class FortielRuntimeError(FortielError):
     """Fortiel runtime error."""
     def __init__(self, message: str, file_path: str, line_number: int) -> None:
-        super(FortielRuntimeError, self).__init__(
+        super().__init__(
             f'Fortiel runtime error: {message}', file_path, line_number)
 
 
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+                    Fortiel Options                    +-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=                    Fortiel Options                    =-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
 class FortielOptions:
@@ -151,11 +153,11 @@ class FortielOptions:
         self.line_marker_format: Literal['fpp', 'cpp', 'none'] = 'fpp'
 
 
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+         Fortiel Scanner and Directives Parser         +-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=         Fortiel Scanner and Directives Parser         =-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
 class FortielTree:
@@ -175,21 +177,21 @@ class FortielNode:
 class FortielNodeLineList(FortielNode):
     """The list of code lines syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeLineList, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.lines: List[str] = []
 
 
 class FortielNodeUse(FortielNode):
     """The USE directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeUse, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.imported_file_path: str = ''
 
 
 class FortielNodeLet(FortielNode):
     """The LET directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeLet, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.name: str = ''
         self.arguments: Union[str, List[str], None] = None
         self.expression: str = ''
@@ -198,7 +200,7 @@ class FortielNodeLet(FortielNode):
 class FortielNodeDefine(FortielNode):
     """The DEFINE directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeDefine, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.name: str = ''
         self.segment: str = ''
 
@@ -206,14 +208,14 @@ class FortielNodeDefine(FortielNode):
 class FortielNodeDel(FortielNode):
     """The DEL directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeDel, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.names: List[str] = []
 
 
 class FortielNodeIf(FortielNode):
     """The IF/ELSE IF/ELSE/END IF directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeIf, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.condition: str = ''
         self.then_nodes: List[FortielNode] = []
         self.elif_nodes: List[FortielNodeElseIf] = []
@@ -223,7 +225,7 @@ class FortielNodeIf(FortielNode):
 class FortielNodeElseIf(FortielNode):
     """The ELSE IF directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeElseIf, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.condition: str = ''
         self.then_nodes: List[FortielNode] = []
 
@@ -231,7 +233,7 @@ class FortielNodeElseIf(FortielNode):
 class FortielNodeDo(FortielNode):
     """The DO/END DO directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeDo, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.index_name: str = ''
         self.ranges: str = ''
         self.loop_nodes: List[FortielNode] = []
@@ -240,7 +242,7 @@ class FortielNodeDo(FortielNode):
 class FortielNodeFor(FortielNode):
     """The FOR/END FOR directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeFor, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.index_names: Union[str, List[str], None] = None
         self.ranges_expression: str = ''
         self.loop_nodes: List[FortielNode] = []
@@ -249,7 +251,7 @@ class FortielNodeFor(FortielNode):
 class FortielNodeMacro(FortielNode):
     """The MACRO/END MACRO directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeMacro, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.name: str = ''
         self.pattern_nodes: List[FortielNodePattern] = []
         self.section_nodes: List[FortielNodeSection] = []
@@ -267,7 +269,7 @@ class FortielNodeMacro(FortielNode):
 class FortielNodeSection(FortielNode):
     """The SECTION directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeSection, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.name: str = ''
         self.once: bool = False
         self.pattern_nodes: List[FortielNodePattern] = []
@@ -276,7 +278,7 @@ class FortielNodeSection(FortielNode):
 class FortielNodePattern(FortielNode):
     """The PATTERN directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodePattern, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.pattern: Union[str, Pattern[str]] = ''
         self.match_nodes: List[FortielNode] = []
 
@@ -284,7 +286,7 @@ class FortielNodePattern(FortielNode):
 class FortielNodeCallSegment(FortielNode):
     """The call segment syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
-        super(FortielNodeCallSegment, self).__init__(file_path, line_number)
+        super().__init__(file_path, line_number)
         self.spaces: str = ''
         self.name: str = ''
         self.argument: str = ''
@@ -293,7 +295,7 @@ class FortielNodeCallSegment(FortielNode):
 class FortielNodeCall(FortielNode):
     """The call directive syntax tree node."""
     def __init__(self, node: FortielNodeCallSegment) -> None:
-        super(FortielNodeCall, self).__init__(node.file_path, node.line_number)
+        super().__init__(node.file_path, node.line_number)
         self.spaces: str = node.spaces
         self.name: str = node.name
         self.argument: str = node.argument
@@ -304,7 +306,7 @@ class FortielNodeCall(FortielNode):
 class FortielNodeCallSection(FortielNode):
     """The call directive section syntax tree node."""
     def __init__(self, node: FortielNodeCallSegment) -> None:
-        super(FortielNodeCallSection, self).__init__(node.file_path, node.line_number)
+        super().__init__(node.file_path, node.line_number)
         self.name: str = node.name
         self.argument: str = node.argument
         self.captured_nodes: List[FortielNode] = []
@@ -476,12 +478,11 @@ class FortielParser:
         if dir_head is None:
             message = 'empty directive'
             raise FortielSyntaxError(message, self._file_path, self._line_number)
-        elif dir_head in _MISPLACED_HEADS:
+        if dir_head in _MISPLACED_HEADS:
             message = f'misplaced directive <{dir_head}>'
             raise FortielSyntaxError(message, self._file_path, self._line_number)
-        else:
-            message = f'unknown or mistyped directive <{dir_head}>'
-            raise FortielSyntaxError(message, self._file_path, self._line_number)
+        message = f'unknown or mistyped directive <{dir_head}>'
+        raise FortielSyntaxError(message, self._file_path, self._line_number)
 
     def _matches_directive(self, *dir_head_list: str) -> Optional[str]:
         dir_match = self._matches_line(_FORTIEL_DIRECTIVE)
@@ -495,7 +496,8 @@ class FortielParser:
                 return dir_head
         return None
 
-    def _match_directive_syntax(self, pattern: Pattern[str], *groups: str) -> Union[str, Tuple[str, ...]]:
+    def _match_directive_syntax(
+            self, pattern: Pattern[str], *groups: str) -> Union[str, Tuple[str, ...]]:
         directive = self._matches_line(_FORTIEL_DIRECTIVE)['directive'].rstrip()
         if (match := pattern.match(directive)) is None:
             head = type(self)._parse_head(directive)
@@ -654,25 +656,24 @@ class FortielParser:
         return node
 
 
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+              Fortiel Directives Executor              +-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=              Fortiel Directives Executor              =-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
-_NAME_SUB = _reg_expr(r'[$@]\s*(?P<name>\w+)\b')
-_LINE_SUB = _reg_expr(r'\${(?P<expression>.+?)}\$')
-_LOOP_SUB = _reg_expr(
-    r'(?P<precedingComma>,\s*)?@(?P<expression>(?::|\w+))(?P<trailingComma>\s*,)?')
-_ADVANCED_LOOP_SUB = _reg_expr(
-    r'(?P<precedingComma>,\s*)?@{(?P<expression>.*?)}@(?P<trailingComma>\s*,)?')
-_ADD_ASSIGN_SUB = _reg_expr(
-    r'^(?P<spaces>\s*)(?P<lhs>.+)(?P<operator>[\+\-]=)(?P<rhs>.+)$')
+_FORTIEL_INLINE_EVAL = _reg_expr(r'[$@]\s*(?P<expression>\w+)\b')
+_FORTIEL_INLINE_ADVANCED_EVAL = _reg_expr(r'\${(?P<expression>.+?)}\$')
+
+_FORTIEL_INLINE_LOOP = _reg_expr(
+    r'(?P<comma_before>,\s*)?[\^@](?P<expression>(?::|\w+))(?P<comma_after>\s*,)?')
+_FORTIEL_INLINE_ADVANCED_LOOP = _reg_expr(
+    r'(?P<comma_before>,\s*)?[\^@]{(?P<expression>.*?)}[\^@](?P<comma_after>\s*,)?')
 
 _BUILTIN_NAMES = ['__INDEX__', '__FILE__', '__LINE__', '__DATE__', '__TIME__']
 
-FortielPrinter = Callable[[str], None]
+FortielPrintFunc = Callable[[str], None]
 
 
 class FortielExecutor:
@@ -734,78 +735,56 @@ class FortielExecutor:
 
     def _evaluate_line(self, line: str, file_path: str, line_number: int) -> str:
         """Execute in-line substitutions."""
-        # Skip comment lines
-        # (TODO: no inline comments for now).
-        if (s := line.lstrip()).startswith('!') and not s.startswith('!$'):
-            return line
 
-        # Evaluate <@:> and <@{}@> substitutions.
-        def _loopSubReplace(match: Match[str]) -> str:
-            index = self._scope.get('__INDEX__')
-            if index is None:
-                message = '<@{}@> substitution outside of the <do> loop body'
+        def _evaluate_inline_loop_expression_sub(match: Match[str]) -> str:
+            # Evaluate <^:> and <^{..}^> substitutions.
+            if (index := self._scope.get('__INDEX__')) is None:
+                message = '<^{..}^> substitution outside of the <do> loop body'
                 raise FortielRuntimeError(message, file_path, line_number)
-            expression, precedingComma, trailingComma = \
-                match.group('expression', 'precedingComma', 'trailingComma')
+            expression, comma_before, comma_after = \
+                match.group('expression', 'comma_before', 'comma_after')
             if index == 0:
                 # Empty substitution, replace with a single comma if needed.
-                return ',' if precedingComma is not None and trailingComma is not None else ''
+                sub = ',' if (comma_before is not None) and (comma_after is not None) else ''
             else:
-                result = ','.join([e.replace('$$', str(i + 1)) for i, e in enumerate(index * [expression])])
-                return (precedingComma or '') + result + (trailingComma or '')
+                sub = ','.join(
+                    [e.replace('$$', str(i + 1)) for i, e in enumerate(index * [expression])])
+                if comma_before is not None:
+                    sub = comma_before + sub
+                if comma_after is not None:
+                    sub += comma_after
+            # Recursively evaluate inner substitutions.
+            return self._evaluate_line(sub, file_path, line_number)
 
-        line = _LOOP_SUB.sub(_loopSubReplace, line)
-        line = _ADVANCED_LOOP_SUB.sub(_loopSubReplace, line)
+        line = _FORTIEL_INLINE_ADVANCED_LOOP.sub(_evaluate_inline_loop_expression_sub, line)
+        line = _FORTIEL_INLINE_LOOP.sub(_evaluate_inline_loop_expression_sub, line)
 
-        # Evaluate expression substitutions.
-        def _lineSubReplace(match: Match[str]) -> str:
+        def _evaluate_inline_eval_expression_sub(match: Match[str]) -> str:
+            # Evaluate <$..> and <${..}$> substitutions.
             expression = match['expression']
             value = self._evaluate_expression(expression, file_path, line_number)
-            # Put negative integer into parentheses.
+            # Put negative number into parentheses.
             if isinstance(value, (int, float)) and (value < 0):
-                value = f'({value})'
+                sub = f'({value})'
             else:
-                value = str(value)
-            return value
+                sub = str(value)
+            # Recursively evaluate inner substitutions.
+            return self._evaluate_line(sub, file_path, line_number)
 
-        line = _LINE_SUB.sub(_lineSubReplace, line)
-
-        # Evaluate name substitutions.
-        def _nameSubReplace(match: Match[str]) -> str:
-            name = match['name']
-            if name.isdecimal():
-                return name
-            else:
-                value = self._scope.get(name)
-                if value is None:
-                    message = f'variable ${name} was not previously declared'
-                    raise FortielRuntimeError(message, file_path, line_number)
-                # Put negative integer into parentheses.
-                if isinstance(value, (int, float)) and (value < 0):
-                    value = f'({value})'
-                else:
-                    value = str(value)
-                return value
-
-        if (s := s.lower()).startswith('!$omp') or s.startswith('!$acc'):
-            # Special case for OpenMP/OpenACC.
-            index = len(line) - len(s) + len('!$')
-            line = line[:index] + _NAME_SUB.sub(_nameSubReplace, line[index:])
+        line = _FORTIEL_INLINE_ADVANCED_EVAL.sub(_evaluate_inline_eval_expression_sub, line)
+        if (striped := line.lstrip().lower()).startswith('!$omp') or striped.startswith('!$acc'):
+            # Special case for OpenMP/OpenACC directives.
+            cut = len(line) - len(striped) + len('!$')
+            line = \
+                line[:cut] + \
+                _FORTIEL_INLINE_EVAL.sub(_evaluate_inline_eval_expression_sub, line[cut:])
         else:
-            line = _NAME_SUB.sub(_nameSubReplace, line)
-
-        # Evaluate <+=> and <-=> substitutions.
-        def _addAssignReplace(match: Match[str]):
-            spaces, lhs, operator, rhs = match.group('spaces', 'lhs', 'operator', 'rhs')
-            lhs, rhs = lhs.rstrip(), rhs.lstrip()
-            return f'{spaces}{lhs} = {lhs} {operator[0]} {rhs}'
-
-        line = _ADD_ASSIGN_SUB.sub(_addAssignReplace, line)
+            line = _FORTIEL_INLINE_EVAL.sub(_evaluate_inline_eval_expression_sub, line)
 
         # Output the processed line.
         return line
 
-    def execute_tree(self, tree: FortielTree, printer: FortielPrinter) -> None:
+    def execute_tree(self, tree: FortielTree, printer: FortielPrintFunc) -> None:
         """Execute the syntax tree or the syntax tree node."""
         # Print primary line marker.
         if self._options.line_marker_format == 'fpp':
@@ -815,7 +794,7 @@ class FortielExecutor:
         # Execute tree nodes.
         self._execute_node_list(tree.root_nodes, printer)
 
-    def _execute_node(self, node: FortielNode, printer: FortielPrinter):
+    def _execute_node(self, node: FortielNode, printer: FortielPrintFunc):
         """Execute a node."""
         if isinstance(node, FortielNodeUse):
             return self._execute_node_use(node)
@@ -840,7 +819,7 @@ class FortielExecutor:
         node_type = type(node).__name__
         raise RuntimeError(f'internal error: no evaluator for directive type {node_type}')
 
-    def _execute_node_list(self, nodes: List[FortielNode], printer: FortielPrinter) -> None:
+    def _execute_node_list(self, nodes: List[FortielNode], printer: FortielPrintFunc) -> None:
         """Execute the node list."""
         index = 0
         while index < len(nodes):
@@ -849,7 +828,7 @@ class FortielExecutor:
             self._execute_node(nodes[index], printer)
             index += 1
 
-    def _execute_node_line_list(self, node: FortielNodeLineList, printer: FortielPrinter) -> None:
+    def _execute_node_line_list(self, node: FortielNodeLineList, printer: FortielPrintFunc) -> None:
         """Execute line block."""
         # Print line marker.
         if self._options.line_marker_format == 'fpp':
@@ -873,8 +852,8 @@ class FortielExecutor:
         if imported_file_path not in self._imported_files_paths:
             self._imported_files_paths.add(imported_file_path)
             try:
-                with open(imported_file_path, mode='r') as usedFile:
-                    imported_file_lines = usedFile.read().splitlines()
+                with open(imported_file_path, mode='r') as imported_file:
+                    imported_file_lines = imported_file.read().splitlines()
             except IsADirectoryError as error:
                 message = f'`{node.imported_file_path}` is a directory'
                 raise FortielRuntimeError(message, node.file_path, node.line_number) from error
@@ -932,7 +911,7 @@ class FortielExecutor:
                 raise FortielRuntimeError(message, node.file_path, node.line_number)
             del self._scope[name]
 
-    def _execute_node_if(self, node: FortielNodeIf, printer: FortielPrinter) -> None:
+    def _execute_node_if(self, node: FortielNodeIf, printer: FortielPrintFunc) -> None:
         """Execute IF/ELSE IF/ELSE/END IF node."""
         # Evaluate condition and execute THEN branch.
         if self._evaluate_expression(node.condition, node.file_path, node.line_number):
@@ -940,14 +919,15 @@ class FortielExecutor:
         else:
             # Evaluate condition and execute ELSE IF branches.
             for elif_node in node.elif_nodes:
-                if self._evaluate_expression(elif_node.condition, elif_node.file_path, elif_node.line_number):
+                if self._evaluate_expression(
+                        elif_node.condition, elif_node.file_path, elif_node.line_number):
                     self._execute_node_list(elif_node.then_nodes, printer)
                     break
             else:
                 # Execute ELSE branch.
                 self._execute_node_list(node.else_nodes, printer)
 
-    def _execute_node_do(self, node: FortielNodeDo, printer: FortielPrinter) -> None:
+    def _execute_node_do(self, node: FortielNodeDo, printer: FortielPrintFunc) -> None:
         """Execute DO/END DO node."""
         # Evaluate loop ranges.
         ranges = self._evaluate_expression(
@@ -973,10 +953,11 @@ class FortielExecutor:
             # Restore previous index value.
             self._scope['__INDEX__'] = prev_index
 
-    def _execute_node_for(self, node: FortielNodeFor, printer: FortielPrinter) -> None:
+    def _execute_node_for(self, node: FortielNodeFor, printer: FortielPrintFunc) -> None:
         """Execute FOR/END FOR node."""
         # Evaluate loop.
-        iterable = self._evaluate_expression(node.ranges_expression, node.file_path, node.line_number)
+        iterable = self._evaluate_expression(
+            node.ranges_expression, node.file_path, node.line_number)
         if isinstance(iterable, dict):
             for key, value in iterable.items():
                 if len(node.index_names) == 1:
@@ -1004,53 +985,54 @@ class FortielExecutor:
         if len(node.section_nodes) > 0:
             sections = node.section_names()
             if node.name in sections:
-                n = node.name
-                message = f'section name cannot be the same with macro `{n}` name'
+                message = f'section name cannot be the same with macro `{node.name}` name'
                 raise FortielRuntimeError(message, node.file_path, node.line_number)
-            if (d := _find_duplicate(sections)) is not None:
-                n = node.name
-                message = f'duplicate section `{d}` of the macro construct `{n}`'
+            if (dup := _find_duplicate(sections)) is not None:
+                message = f'duplicate section `{dup}` of the macro construct `{node.name}`'
                 raise FortielRuntimeError(message, node.file_path, node.line_number)
         # Add macro to the scope.
         self._macros[node.name] = node
 
-    def _execute_node_call(self, node: FortielNodeCall, printer: FortielPrinter) -> None:
+    def _execute_node_call(self, node: FortielNodeCall, print_func: FortielPrintFunc) -> None:
         """Execute CALL node."""
 
         # Use a special print function
         # in order to keep indentations from the original source.
         # ( Note that we have to keep line markers not indented. )
-        def _spaced_printer(line: str):
-            printer(line if line.startswith('#') else node.spaces + line)
+        def _spaced_print_func(line: str):
+            print_func(line if line.startswith('#') else node.spaces + line)
 
         macro_node = self._macros[node.name]
-        self._execute_node_pattern_list(node, macro_node, _spaced_printer)
+        self._execute_node_pattern_list(node, macro_node, _spaced_print_func)
         # Match and evaluate macro sections.
         if macro_node.construct():
-            self._execute_node_list(node.captured_nodes, printer)
+            self._execute_node_list(node.captured_nodes, print_func)
             section_iterator = iter(macro_node.section_nodes)
             section_node = next(section_iterator, None)
             for call_section_node in node.call_section_nodes:
                 # Find a section node match.
-                while section_node is not None and section_node.name != call_section_node.name:
+                while section_node is not None and \
+                        section_node.name != call_section_node.name:
                     section_node = next(section_iterator, None)
                 if section_node is None:
                     message = f'unexpected call section `{call_section_node.name}`'
-                    raise FortielRuntimeError(message, call_section_node.file_path, call_section_node.line_number)
+                    raise FortielRuntimeError(
+                        message, call_section_node.file_path, call_section_node.line_number)
                 # Execute the section.
-                self._execute_node_pattern_list(call_section_node, section_node, _spaced_printer)
-                self._execute_node_list(call_section_node.captured_nodes, printer)
+                self._execute_node_pattern_list(call_section_node, section_node, _spaced_print_func)
+                self._execute_node_list(call_section_node.captured_nodes, print_func)
                 # Advance a section for sections with 'once' attribute.
                 if section_node.once:
                     section_node = next(section_iterator, None)
             # Execute finally section.
-            self._execute_node_list(macro_node.finally_nodes, _spaced_printer)
-
+            self._execute_node_list(macro_node.finally_nodes, _spaced_print_func)
 
     def _execute_node_pattern_list(
             self, node: Union[FortielNodeCall, FortielNodeCallSection],
-            macro_node: Union[FortielNodeMacro, FortielNodeSection], printer: FortielPrinter) -> None:
-        # Find a match in macro or section patterns and execute macro primary section or current section.
+            macro_node: Union[FortielNodeMacro, FortielNodeSection],
+            printer: FortielPrintFunc) -> None:
+        # Find a match in macro or section patterns and
+        # execute macro primary section or current section.
         for pattern_node in macro_node.pattern_nodes:
             match = pattern_node.pattern.match(node.argument)
             if match is not None:
@@ -1058,16 +1040,15 @@ class FortielExecutor:
                 self._execute_node_list(pattern_node.match_nodes, printer)
                 break
         else:
-            n = macro_node.name
-            message = f'macro `{n}` call does not match any pattern'
+            message = f'macro `{macro_node.name}` call does not match any pattern'
             raise FortielRuntimeError(message, node.file_path, node.line_number)
 
 
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+              Fortiel API and Entry Point              +-+-+-+-+ #
-# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
-# +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=              Fortiel API and Entry Point              =-=-=-=-= #
+# =-=-=-=-=-=-=-=                                           =-=-=-=-=-=-=-= #
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
 def fortiel_preprocess(
