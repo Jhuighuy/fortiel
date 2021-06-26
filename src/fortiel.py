@@ -53,9 +53,9 @@ from typing import (cast, List, Set, Dict, Tuple, Any, Union,
 
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
-# +-+-+-+-+                                                       +-+-+-+-+ #
+# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
 # +-+-+-+-+                Fortiel Helper Routines                +-+-+-+-+ #
-# +-+-+-+-+                                                       +-+-+-+-+ #
+# +-+-+-+-+-+-+-+                                           +-+-+-+-+-+-+-+ #
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
@@ -118,19 +118,22 @@ class FortielError(Exception):
 class FortielGrammarError(FortielError):
     """Fortiel grammar error."""
     def __init__(self, message: str, file_path: str, line_number: int) -> None:
-        super(FortielGrammarError, self).__init__(f'Fortiel syntax error: {message}', file_path, line_number)
+        super(FortielGrammarError, self).__init__(
+            f'Fortiel syntax error: {message}', file_path, line_number)
 
 
 class FortielSyntaxError(FortielError):
     """Fortiel syntax error."""
     def __init__(self, message: str, file_path: str, line_number: int) -> None:
-        super(FortielSyntaxError, self).__init__(f'Fortiel syntax error: {message}', file_path, line_number)
+        super(FortielSyntaxError, self).__init__(
+            f'Fortiel syntax error: {message}', file_path, line_number)
 
 
 class FortielRuntimeError(FortielError):
     """Fortiel runtime error."""
     def __init__(self, message: str, file_path: str, line_number: int) -> None:
-        super(FortielRuntimeError, self).__init__(f'Fortiel runtime error: {message}', file_path, line_number)
+        super(FortielRuntimeError, self).__init__(
+            f'Fortiel runtime error: {message}', file_path, line_number)
 
 
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
@@ -628,20 +631,18 @@ class FortielParser:
             try:
                 pattern = _reg_expr(pattern_node.pattern)
             except re.error as error:
-                p = pattern_node.pattern
-                message = f'invalid pattern regular expression `{p}`'
-                raise FortielSyntaxError(message, pattern_node.file_path, pattern_node.line_number) from error
+                message = f'invalid pattern regular expression `{pattern_node.pattern}`'
+                raise FortielSyntaxError(
+                    message, pattern_node.file_path, pattern_node.line_number) from error
             else:
                 pattern_node.pattern = pattern
         return pattern_nodes
 
     def _parse_directive_call(self) -> FortielNodeCallSegment:
         """Parse call directive."""
-        # Note that we are not evaluating or
-        # matching call arguments and sections here.
+        # Note that we are not evaluating or matching call arguments and sections here.
         node = FortielNodeCallSegment(self._file_path, self._line_number)
-        # Call directive uses different syntax,
-        # so it cannot be parsed with common routines.
+        # Call directive uses different syntax, so it cannot be parsed with common routines.
         match = self._matches_line(_FORTIEL_CALL)
         if match is None:
             message = 'invalid call segment syntax'
@@ -725,8 +726,10 @@ class FortielExecutor:
             value = eval(expression, self._scope)
             return value
         except Exception as error:
-            e = str(error).replace("<head>", f"expression `{expression}`")
-            message = f'Python expression evaluation error: {e}'
+            txt = str(error)
+            txt = txt.replace("<head>", f"expression `{expression}`")
+            txt = txt.replace("<string>", f"expression `{expression}`")
+            message = f'Python expression evaluation error: {txt}'
             raise FortielRuntimeError(message, file_path, line_number) from error
 
     def _evaluate_line(self, line: str, file_path: str, line_number: int) -> str:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.9
 # -*- coding: utf-8 -*-
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
 # +-+-+                                                       +-+-+ #
 # +-+-+     ,------.               ,--.  ,--.       ,--.      +-+-+ #
 # +-+-+     |  .---',---. ,--.--.,-'  '-.`--' ,---. |  |      +-+-+ #
@@ -8,10 +9,10 @@
 # +-+-+     |  |`  ' '-' '|  |     |  |  |  |\   --.|  |      +-+-+ #
 # +-+-+     `--'    `---' `--'     `--'  `--' `----'`--'      +-+-+ #
 # +-+-+                                                       +-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
 # +-+-+                                                       +-+-+ #
-# +-+                                                           +-+ #
-# +                                                               + #
 #                                                                   #
 # Copyright (C) 2021 Oleg Butakov                                   #
 #                                                                   #
@@ -36,15 +37,13 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR     #
 # OTHER DEALINGS IN THE SOFTWARE.                                   #
 #                                                                   #
-# +                                                               + #
-# +-+                                                           +-+ #
 # +-+-+                                                       +-+-+ #
+# +-+-+-+-+-+                                           +-+-+-+-+-+ #
 # +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+ #
 
 
 """
-GFortiel, Fortiel language compiler, implemented as GFortran
-wrapper.
+GFortiel, Fortiel language compiler, implemented as GFortran wrapper.
 """
 
 
@@ -110,10 +109,10 @@ def main() -> None:
     # Preprocess the sources.
     exit_code = 0
     output_file_paths = []
-    for filePath in file_paths:
-        with tempfile.NamedTemporaryFile() as outputFile:
-            output_file_path = outputFile.name + os.path.splitext(filePath)[1]
-        file_exit_code = _gfortiel_preprocess(filePath, output_file_path)
+    for file_path in file_paths:
+        with tempfile.NamedTemporaryFile() as output_file:
+            output_file_path = output_file.name + os.path.splitext(file_path)[1]
+        file_exit_code = _gfortiel_preprocess(file_path, output_file_path)
         if file_exit_code == _EXIT_SUCCESS:
             output_file_paths.append(output_file_path)
         exit_code |= file_exit_code
