@@ -13,7 +13,7 @@
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 # =-=-=-=-=                                                       =-=-=-=-= #
 # =-=                                                                   =-= #
-# +                                                                       + #
+# =                                                                       = #
 #                                                                           #
 # Copyright (C) 2021 Oleg Butakov                                           #
 #                                                                           #
@@ -36,7 +36,7 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE         #
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                    #
 #                                                                           #
-# +                                                                       + #
+# =                                                                       = #
 # =-=                                                                   =-= #
 # =-=-=-=-=                                                       =-=-=-=-= #
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
@@ -50,7 +50,8 @@ import re
 import argparse
 from os import path
 
-from typing import (cast, List, Set, Dict, Tuple, Any, Union,
+from typing import (cast, final,
+                    List, Set, Dict, Tuple, Any, Union,
                     Optional, Callable, Literal, Pattern, Match)
 
 
@@ -117,6 +118,7 @@ class FortielError(Exception):
         return f'{self.file_path}:{self.line_number}:1:\n\nFatal Error: {self.message}'
 
 
+@final
 class FortielGrammarError(FortielError):
     """Fortiel grammar error."""
     def __init__(self, message: str, file_path: str, line_number: int) -> None:
@@ -124,6 +126,7 @@ class FortielGrammarError(FortielError):
             f'Fortiel syntax error: {message}', file_path, line_number)
 
 
+@final
 class FortielSyntaxError(FortielError):
     """Fortiel syntax error."""
     def __init__(self, message: str, file_path: str, line_number: int) -> None:
@@ -131,6 +134,7 @@ class FortielSyntaxError(FortielError):
             f'Fortiel syntax error: {message}', file_path, line_number)
 
 
+@final
 class FortielRuntimeError(FortielError):
     """Fortiel runtime error."""
     def __init__(self, message: str, file_path: str, line_number: int) -> None:
@@ -145,6 +149,7 @@ class FortielRuntimeError(FortielError):
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
+@final
 class FortielOptions:
     """Preprocessor options."""
     def __init__(self) -> None:
@@ -160,6 +165,7 @@ class FortielOptions:
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
+@final
 class FortielTree:
     """Fortiel syntax tree."""
     def __init__(self, file_path: str) -> None:
@@ -174,6 +180,7 @@ class FortielNode:
         self.line_number: int = line_number
 
 
+@final
 class FortielNodeLineList(FortielNode):
     """The list of code lines syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -181,6 +188,7 @@ class FortielNodeLineList(FortielNode):
         self.lines: List[str] = []
 
 
+@final
 class FortielNodeUse(FortielNode):
     """The USE directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -188,6 +196,7 @@ class FortielNodeUse(FortielNode):
         self.imported_file_path: str = ''
 
 
+@final
 class FortielNodeLet(FortielNode):
     """The LET directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -197,6 +206,7 @@ class FortielNodeLet(FortielNode):
         self.expression: str = ''
 
 
+@final
 class FortielNodeDefine(FortielNode):
     """The DEFINE directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -205,6 +215,7 @@ class FortielNodeDefine(FortielNode):
         self.segment: str = ''
 
 
+@final
 class FortielNodeDel(FortielNode):
     """The DEL directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -212,6 +223,7 @@ class FortielNodeDel(FortielNode):
         self.names: List[str] = []
 
 
+@final
 class FortielNodeIf(FortielNode):
     """The IF/ELSE IF/ELSE/END IF directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -222,6 +234,7 @@ class FortielNodeIf(FortielNode):
         self.else_nodes: List[FortielNode] = []
 
 
+@final
 class FortielNodeElseIf(FortielNode):
     """The ELSE IF directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -230,6 +243,7 @@ class FortielNodeElseIf(FortielNode):
         self.then_nodes: List[FortielNode] = []
 
 
+@final
 class FortielNodeDo(FortielNode):
     """The DO/END DO directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -239,6 +253,7 @@ class FortielNodeDo(FortielNode):
         self.loop_nodes: List[FortielNode] = []
 
 
+@final
 class FortielNodeFor(FortielNode):
     """The FOR/END FOR directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -248,6 +263,7 @@ class FortielNodeFor(FortielNode):
         self.loop_nodes: List[FortielNode] = []
 
 
+@final
 class FortielNodeMacro(FortielNode):
     """The MACRO/END MACRO directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -266,6 +282,7 @@ class FortielNodeMacro(FortielNode):
         return [node.name for node in self.section_nodes]
 
 
+@final
 class FortielNodeSection(FortielNode):
     """The SECTION directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -275,6 +292,7 @@ class FortielNodeSection(FortielNode):
         self.pattern_nodes: List[FortielNodePattern] = []
 
 
+@final
 class FortielNodePattern(FortielNode):
     """The PATTERN directive syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -283,6 +301,7 @@ class FortielNodePattern(FortielNode):
         self.match_nodes: List[FortielNode] = []
 
 
+@final
 class FortielNodeCallSegment(FortielNode):
     """The call segment syntax tree node."""
     def __init__(self, file_path: str, line_number: int) -> None:
@@ -292,6 +311,7 @@ class FortielNodeCallSegment(FortielNode):
         self.argument: str = ''
 
 
+@final
 class FortielNodeCall(FortielNode):
     """The call directive syntax tree node."""
     def __init__(self, node: FortielNodeCallSegment) -> None:
@@ -303,6 +323,7 @@ class FortielNodeCall(FortielNode):
         self.call_section_nodes: List[FortielNodeCallSection] = []
 
 
+@final
 class FortielNodeCallSection(FortielNode):
     """The call directive section syntax tree node."""
     def __init__(self, node: FortielNodeCallSegment) -> None:
@@ -390,7 +411,7 @@ class FortielParser:
                 return match
         return None
 
-    def _parse_line_cont(self) -> None:
+    def _parse_line_continuation(self) -> None:
         """Parse continuation lines."""
         while self._line.endswith('&'):
             self._line: str = self._line[:-1] + ' '
@@ -438,7 +459,7 @@ class FortielParser:
         if self._matches_line(_FORTIEL_DIRECTIVE):
             return self._parse_directive()
         if self._matches_line(_FORTIEL_CALL):
-            self._parse_line_cont()
+            self._parse_line_continuation()
             return self._parse_directive_call()
         return self._parse_line_list()
 
@@ -454,46 +475,41 @@ class FortielParser:
 
     def _parse_directive(self) -> FortielNode:
         """Parse a directive."""
-        self._parse_line_cont()
+        self._parse_line_continuation()
         directive = self._matches_line(_FORTIEL_DIRECTIVE)['directive']
-        dir_head = type(self)._parse_head(directive)
-        if dir_head == 'use':
-            return self._parse_directive_use()
-        if dir_head == 'let':
-            return self._parse_directive_let()
-        if dir_head == 'define':
-            return self._parse_directive_define()
-        if dir_head == 'del':
-            return self._parse_directive_del()
-        if dir_head == 'if':
-            return self._parse_directive_if()
-        if dir_head == 'do':
-            return self._parse_directive_do()
-        if dir_head == 'for':
-            return self._parse_directive_for()
-        if dir_head == 'macro':
-            return self._parse_directive_macro()
-        # Determine the error type:
-        # either the known directive is misplaced, either the directive is unknown.
-        if dir_head is None:
+        head = type(self)._parse_head(directive)
+        if head is None:
             message = 'empty directive'
             raise FortielSyntaxError(message, self._file_path, self._line_number)
-        if dir_head in _MISPLACED_HEADS:
-            message = f'misplaced directive <{dir_head}>'
+        if (func := {'use': self._parse_directive_use,
+                     'let': self._parse_directive_let,
+                     'define': self._parse_directive_define,
+                     'del': self._parse_directive_del,
+                     'if': self._parse_directive_if,
+                     'do': self._parse_directive_do,
+                     'for': self._parse_directive_for,
+                     'macro': self._parse_directive_macro
+                     }.get(head)) is not None:
+            return func()
+        # Determine the error type:
+        # either the known directive is misplaced, either the directive is unknown.
+        if head in {'else', 'else if', 'end if',
+                    'end do', 'section', 'finally', 'pattern', 'end macro'}:
+            message = f'misplaced directive <{head}>'
             raise FortielSyntaxError(message, self._file_path, self._line_number)
-        message = f'unknown or mistyped directive <{dir_head}>'
+        message = f'unknown or mistyped directive <{head}>'
         raise FortielSyntaxError(message, self._file_path, self._line_number)
 
     def _matches_directive(self, *dir_head_list: str) -> Optional[str]:
-        dir_match = self._matches_line(_FORTIEL_DIRECTIVE)
-        if dir_match is not None:
+        match = self._matches_line(_FORTIEL_DIRECTIVE)
+        if match is not None:
             # Parse continuations and rematch.
-            self._parse_line_cont()
-            dir_match = self._matches_line(_FORTIEL_DIRECTIVE)
-            directive = dir_match['directive'].lower()
-            dir_head = type(self)._parse_head(directive)
-            if dir_head in [_make_name(head) for head in dir_head_list]:
-                return dir_head
+            self._parse_line_continuation()
+            match = self._matches_line(_FORTIEL_DIRECTIVE)
+            directive = match['directive'].lower()
+            head = type(self)._parse_head(directive)
+            if head in [_make_name(h) for h in dir_head_list]:
+                return head
         return None
 
     def _match_directive_syntax(
@@ -663,12 +679,12 @@ class FortielParser:
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
-_FORTIEL_INLINE_EVAL = _reg_expr(r'[$@]\s*(?P<expression>\w+)\b')
-_FORTIEL_INLINE_ADVANCED_EVAL = _reg_expr(r'\${(?P<expression>.+?)}\$')
+_FORTIEL_INLINE_EVAL = _reg_expr(r'\${(?P<expression>.+?)}\$')
+_FORTIEL_INLINE_SHORT_EVAL = _reg_expr(r'[$@]\s*(?P<expression>\w+)\b')
 
-_FORTIEL_INLINE_LOOP = _reg_expr(
+_FORTIEL_INLINE_SHORT_LOOP = _reg_expr(
     r'(?P<comma_before>,\s*)?[\^@](?P<expression>(?::|\w+))(?P<comma_after>\s*,)?')
-_FORTIEL_INLINE_ADVANCED_LOOP = _reg_expr(
+_FORTIEL_INLINE_LOOP = _reg_expr(
     r'(?P<comma_before>,\s*)?[\^@]{(?P<expression>.*?)}[\^@](?P<comma_after>\s*,)?')
 
 _BUILTIN_NAMES = ['__INDEX__', '__FILE__', '__LINE__', '__DATE__', '__TIME__']
@@ -756,8 +772,8 @@ class FortielExecutor:
             # Recursively evaluate inner substitutions.
             return self._evaluate_line(sub, file_path, line_number)
 
-        line = _FORTIEL_INLINE_ADVANCED_LOOP.sub(_evaluate_inline_loop_expression_sub, line)
         line = _FORTIEL_INLINE_LOOP.sub(_evaluate_inline_loop_expression_sub, line)
+        line = _FORTIEL_INLINE_SHORT_LOOP.sub(_evaluate_inline_loop_expression_sub, line)
 
         def _evaluate_inline_eval_expression_sub(match: Match[str]) -> str:
             # Evaluate <$..> and <${..}$> substitutions.
@@ -771,75 +787,70 @@ class FortielExecutor:
             # Recursively evaluate inner substitutions.
             return self._evaluate_line(sub, file_path, line_number)
 
-        line = _FORTIEL_INLINE_ADVANCED_EVAL.sub(_evaluate_inline_eval_expression_sub, line)
+        line = _FORTIEL_INLINE_EVAL.sub(_evaluate_inline_eval_expression_sub, line)
         if (striped := line.lstrip().lower()).startswith('!$omp') or striped.startswith('!$acc'):
             # Special case for OpenMP/OpenACC directives.
             cut = len(line) - len(striped) + len('!$')
             line = \
                 line[:cut] + \
-                _FORTIEL_INLINE_EVAL.sub(_evaluate_inline_eval_expression_sub, line[cut:])
+                _FORTIEL_INLINE_SHORT_EVAL.sub(_evaluate_inline_eval_expression_sub, line[cut:])
         else:
-            line = _FORTIEL_INLINE_EVAL.sub(_evaluate_inline_eval_expression_sub, line)
+            line = _FORTIEL_INLINE_SHORT_EVAL.sub(_evaluate_inline_eval_expression_sub, line)
 
         # Output the processed line.
         return line
 
-    def execute_tree(self, tree: FortielTree, printer: FortielPrintFunc) -> None:
+    def execute_tree(self, tree: FortielTree, print_func: FortielPrintFunc) -> None:
         """Execute the syntax tree or the syntax tree node."""
         # Print primary line marker.
         if self._options.line_marker_format == 'fpp':
-            printer(f'# 1 "{tree.file_path}" 1')
+            print_func(f'# 1 "{tree.file_path}" 1')
         elif self._options.line_marker_format == 'cpp':
-            printer(f'#line 1 "{tree.file_path}" 1')
+            print_func(f'#line 1 "{tree.file_path}" 1')
         # Execute tree nodes.
-        self._execute_node_list(tree.root_nodes, printer)
+        self._execute_node_list(tree.root_nodes, print_func)
 
-    def _execute_node(self, node: FortielNode, printer: FortielPrintFunc):
+    def _execute_node(self, node: FortielNode, print_func: FortielPrintFunc):
         """Execute a node."""
-        if isinstance(node, FortielNodeUse):
-            return self._execute_node_use(node)
-        if isinstance(node, FortielNodeLet):
-            return self._execute_node_let(node)
-        if isinstance(node, FortielNodeDefine):
-            return self._execute_node_define(node)
-        if isinstance(node, FortielNodeDel):
-            return self._eval_node_del(node)
-        if isinstance(node, FortielNodeIf):
-            return self._execute_node_if(node, printer)
-        if isinstance(node, FortielNodeDo):
-            return self._execute_node_do(node, printer)
-        if isinstance(node, FortielNodeFor):
-            return self._execute_node_for(node, printer)
-        if isinstance(node, FortielNodeMacro):
-            return self._execute_node_macro(node)
-        if isinstance(node, FortielNodeCall):
-            return self._execute_node_call(node, printer)
-        if isinstance(node, FortielNodeLineList):
-            return self._execute_node_line_list(node, printer)
+        for nodeType, func in {
+                FortielNodeUse: self._execute_node_use,
+                FortielNodeLet: self._execute_node_let,
+                FortielNodeDefine: self._execute_node_define,
+                FortielNodeDel: self._execute_node_del,
+                FortielNodeIf: self._execute_node_if,
+                FortielNodeDo: self._execute_node_do,
+                FortielNodeFor: self._execute_node_for,
+                FortielNodeMacro: self._execute_node_macro,
+                FortielNodeCall: self._execute_node_call,
+                FortielNodeLineList: self._execute_node_line_list}.items():
+            if isinstance(node, nodeType):
+                func = cast(Callable[[FortielNode, FortielPrintFunc], None], func)
+                return func(node, print_func)
         node_type = type(node).__name__
         raise RuntimeError(f'internal error: no evaluator for directive type {node_type}')
 
-    def _execute_node_list(self, nodes: List[FortielNode], printer: FortielPrintFunc) -> None:
+    def _execute_node_list(self, nodes: List[FortielNode], print_func: FortielPrintFunc) -> None:
         """Execute the node list."""
         index = 0
         while index < len(nodes):
             if isinstance(nodes[index], FortielNodeCallSegment):
                 self._resolve_call_segment(index, nodes)
-            self._execute_node(nodes[index], printer)
+            self._execute_node(nodes[index], print_func)
             index += 1
 
-    def _execute_node_line_list(self, node: FortielNodeLineList, printer: FortielPrintFunc) -> None:
+    def _execute_node_line_list(
+            self, node: FortielNodeLineList, print_func: FortielPrintFunc) -> None:
         """Execute line block."""
         # Print line marker.
         if self._options.line_marker_format == 'fpp':
-            printer(f'# {node.line_number} "{node.file_path}"')
+            print_func(f'# {node.line_number} "{node.file_path}"')
         elif self._options.line_marker_format == 'cpp':
-            printer(f'#line {node.line_number} "{node.file_path}"')
+            print_func(f'#line {node.line_number} "{node.file_path}"')
         # Print lines.
         for line_number, line in enumerate(node.lines, start=node.line_number):
-            printer(self._evaluate_line(line, node.file_path, line_number))
+            print_func(self._evaluate_line(line, node.file_path, line_number))
 
-    def _execute_node_use(self, node: FortielNodeUse) -> None:
+    def _execute_node_use(self, node: FortielNodeUse, _: FortielPrintFunc) -> None:
         """Execute USE node."""
         # Resolve file path.
         node_dir_path = path.dirname(node.file_path)
@@ -861,11 +872,11 @@ class FortielExecutor:
                 message = f'unable to read file `{node.imported_file_path}`'
                 raise FortielRuntimeError(message, node.file_path, node.line_number) from error
             # Parse and execute the dependency.
-            # ( Use a dummy printer in order to skip code lines. )
+            # ( Use a dummy print_func in order to skip code lines. )
             imported_tree = FortielParser(node.imported_file_path, imported_file_lines).parse()
             self.execute_tree(imported_tree, (lambda _: None))
 
-    def _execute_node_let(self, node: FortielNodeLet) -> None:
+    def _execute_node_let(self, node: FortielNodeLet, _: FortielPrintFunc) -> None:
         """Execute LET node."""
         # Check if the variable is not already defined, and is not a build-in name.
         if node.name in self._scope:
@@ -890,7 +901,7 @@ class FortielExecutor:
             function = self._evaluate_expression(expression, node.file_path, node.line_number)
             self._scope[node.name] = function
 
-    def _execute_node_define(self, node: FortielNodeDefine) -> None:
+    def _execute_node_define(self, node: FortielNodeDefine, _: FortielPrintFunc) -> None:
         """Execute DEFINE node."""
         # Check if the variable is not a build-in name.
         if node.name in _BUILTIN_NAMES:
@@ -900,7 +911,7 @@ class FortielExecutor:
         value = self._evaluate_line(node.segment, node.file_path, node.line_number)
         self._scope[node.name] = value
 
-    def _eval_node_del(self, node: FortielNodeDel) -> None:
+    def _execute_node_del(self, node: FortielNodeDel, _: FortielPrintFunc) -> None:
         """Execute DEL node."""
         for name in node.names:
             if name not in self._scope:
@@ -911,23 +922,23 @@ class FortielExecutor:
                 raise FortielRuntimeError(message, node.file_path, node.line_number)
             del self._scope[name]
 
-    def _execute_node_if(self, node: FortielNodeIf, printer: FortielPrintFunc) -> None:
+    def _execute_node_if(self, node: FortielNodeIf, print_func: FortielPrintFunc) -> None:
         """Execute IF/ELSE IF/ELSE/END IF node."""
         # Evaluate condition and execute THEN branch.
         if self._evaluate_expression(node.condition, node.file_path, node.line_number):
-            self._execute_node_list(node.then_nodes, printer)
+            self._execute_node_list(node.then_nodes, print_func)
         else:
             # Evaluate condition and execute ELSE IF branches.
             for elif_node in node.elif_nodes:
                 if self._evaluate_expression(
                         elif_node.condition, elif_node.file_path, elif_node.line_number):
-                    self._execute_node_list(elif_node.then_nodes, printer)
+                    self._execute_node_list(elif_node.then_nodes, print_func)
                     break
             else:
                 # Execute ELSE branch.
-                self._execute_node_list(node.else_nodes, printer)
+                self._execute_node_list(node.else_nodes, print_func)
 
-    def _execute_node_do(self, node: FortielNodeDo, printer: FortielPrintFunc) -> None:
+    def _execute_node_do(self, node: FortielNodeDo, print_func: FortielPrintFunc) -> None:
         """Execute DO/END DO node."""
         # Evaluate loop ranges.
         ranges = self._evaluate_expression(
@@ -948,12 +959,12 @@ class FortielExecutor:
                 # Execute loop body.
                 self._scope[node.index_name] = index
                 self._scope['__INDEX__'] = index
-                self._execute_node_list(node.loop_nodes, printer)
+                self._execute_node_list(node.loop_nodes, print_func)
             del self._scope[node.index_name]
             # Restore previous index value.
             self._scope['__INDEX__'] = prev_index
 
-    def _execute_node_for(self, node: FortielNodeFor, printer: FortielPrintFunc) -> None:
+    def _execute_node_for(self, node: FortielNodeFor, print_func: FortielPrintFunc) -> None:
         """Execute FOR/END FOR node."""
         # Evaluate loop.
         iterable = self._evaluate_expression(
@@ -965,7 +976,7 @@ class FortielExecutor:
                 else:
                     self._scope[node.index_names[0]] = key
                     self._scope[node.index_names[1]] = value
-                self._execute_node_list(node.loop_nodes, printer)
+                self._execute_node_list(node.loop_nodes, print_func)
         else:
             for index_values in iterable:
                 if len(node.index_names) == 1:
@@ -973,11 +984,11 @@ class FortielExecutor:
                 else:
                     for index_name, index_value in zip(node.index_names, index_values):
                         self._scope[index_name] = index_value
-                self._execute_node_list(node.loop_nodes, printer)
+                self._execute_node_list(node.loop_nodes, print_func)
         for index_name in node.index_names:
             del self._scope[index_name]
 
-    def _execute_node_macro(self, node: FortielNodeMacro) -> None:
+    def _execute_node_macro(self, node: FortielNodeMacro, _: FortielPrintFunc) -> None:
         """Execute MACRO/END MACRO node."""
         if node.name in self._macros:
             message = f'macro `{node.name}` is already defined'
@@ -1019,7 +1030,8 @@ class FortielExecutor:
                     raise FortielRuntimeError(
                         message, call_section_node.file_path, call_section_node.line_number)
                 # Execute the section.
-                self._execute_node_pattern_list(call_section_node, section_node, _spaced_print_func)
+                self._execute_node_pattern_list(
+                    call_section_node, section_node, _spaced_print_func)
                 self._execute_node_list(call_section_node.captured_nodes, print_func)
                 # Advance a section for sections with 'once' attribute.
                 if section_node.once:
@@ -1030,14 +1042,14 @@ class FortielExecutor:
     def _execute_node_pattern_list(
             self, node: Union[FortielNodeCall, FortielNodeCallSection],
             macro_node: Union[FortielNodeMacro, FortielNodeSection],
-            printer: FortielPrintFunc) -> None:
+            print_func: FortielPrintFunc) -> None:
         # Find a match in macro or section patterns and
         # execute macro primary section or current section.
         for pattern_node in macro_node.pattern_nodes:
             match = pattern_node.pattern.match(node.argument)
             if match is not None:
                 self._scope = {**self._scope, **match.groupdict()}
-                self._execute_node_list(pattern_node.match_nodes, printer)
+                self._execute_node_list(pattern_node.match_nodes, print_func)
                 break
         else:
             message = f'macro `{macro_node.name}` call does not match any pattern'
@@ -1059,10 +1071,10 @@ def fortiel_preprocess(
     tree = FortielParser(file_path, lines).parse()
     with open(output_file_path, 'w') as output_file:
 
-        def _printer(line):
+        def _print_func(line):
             print(line, file=output_file)
 
-        FortielExecutor(options).execute_tree(tree, _printer)
+        FortielExecutor(options).execute_tree(tree, _print_func)
 
 
 def main() -> None:
