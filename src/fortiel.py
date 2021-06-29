@@ -336,6 +336,10 @@ class FortielNodeCallSection(FortielNode):
 _FORTIEL_DIRECTIVE = _reg_expr(r'^\s*\#[@$]\s*(?P<directive>.*)?$')
 _DIR_HEAD = _reg_expr(r'^(?P<word>[^\s]+)(?:\s+(?P<word2>[^\s]+))?')
 
+_FORTIEL_CALL = _reg_expr(
+    r'''^(?P<spaces>\s*)
+    \@(?P<name>(?:END\s*|ELSE\s*)?[A-Z]\w*)\b(?P<argument>[^!]*)(\s*!.*)?$''')
+
 _FORTIEL_USE = _reg_expr(
     r'^USE\s+(?P<path>(?:\"[^\"]+\")|(?:\'[^\']+\')|(?:\<[^\>]+\>))$')
 
@@ -345,36 +349,27 @@ _FORTIEL_LET = _reg_expr(
       \((?:\*{0,2}[A-Z_]\w*(?:\s*,\s*\*{0,2}[A-Z_]\w*)*)?\s*\))?\s*
     =\s*(?P<expression>.*)$''')
 
-_FORTIEL_DEFINE = _reg_expr(
-    r'^DEFINE\s+(?P<name>[A-Z_]\w*)\s+(?P<segment>.*)$')
+_FORTIEL_DEFINE = _reg_expr(r'^DEFINE\s+(?P<name>[A-Z_]\w*)\s+(?P<segment>.*)$')
+_FORTIEL_DEL = _reg_expr(r'^DEL\s+(?P<names>[A-Z_]\w*(?:\s*,\s*[A-Z_]\w*)*)$')
 
-_FORTIEL_DEL = _reg_expr(
-    r'^DEL\s+(?P<names>[A-Z_]\w*(?:\s*,\s*[A-Z_]\w*)*)$')
-
-_FORTIEL_IF = _reg_expr(r'^IF\s*(?P<condition>.+)\s*\:?$')
-_FORTIEL_ELSE_IF = _reg_expr(r'^ELSE\s*IF\s*(?P<condition>.+)\s*\:?$')
+_FORTIEL_IF = _reg_expr(r'^IF\s*(?P<condition>.+)$')
+_FORTIEL_ELSE_IF = _reg_expr(r'^ELSE\s*IF\s*(?P<condition>.+)$')
 _FORTIEL_ELSE = _reg_expr(r'^ELSE$')
 _FORTIEL_END_IF = _reg_expr(r'^END\s*IF$')
 
-_FORTIEL_DO = _reg_expr(
-    r'^DO\s+(?P<index_name>[A-Z_]\w*)\s*=\s*(?P<ranges>.*)\s*\:?$')
+_FORTIEL_DO = _reg_expr(r'^DO\s+(?P<index_name>[A-Z_]\w*)\s*=\s*(?P<ranges>.*)$')
 _FORTIEL_END_DO = _reg_expr(r'^END\s*DO$')
 
 _FORTIEL_FOR = _reg_expr(
-    r'^FOR\s+(?P<index_names>[A-Z_]\w*(?:\s*,\s*[A-Z_]\w*)*)\s*IN\s*(?P<expression>.*)\s*\:?$')
+    r'^FOR\s+(?P<index_names>[A-Z_]\w*(?:\s*,\s*[A-Z_]\w*)*)\s*IN\s*(?P<expression>.*)$')
 _FORTIEL_END_FOR = _reg_expr(r'^END\s*FOR$')
 
-_FORTIEL_MACRO = _reg_expr(
-    r'^MACRO\s+(?P<name>[A-Z]\w*)(\s+(?P<pattern>.*))?$')
+_FORTIEL_MACRO = _reg_expr(r'^MACRO\s+(?P<name>[A-Z]\w*)(\s+(?P<pattern>.*))?$')
 _FORTIEL_PATTERN = _reg_expr(r'^PATTERN\s+(?P<pattern>.*)$')
 _FORTIEL_SECTION = _reg_expr(
     r'^SECTION\s+(?P<once>ONCE\s+)?(?P<name>[A-Z]\w*)(?:\s+(?P<pattern>.*))?$')
 _FORTIEL_FINALLY = _reg_expr(r'^FINALLY$')
 _FORTIEL_END_MACRO = _reg_expr(r'^END\s*MACRO$')
-
-_FORTIEL_CALL = _reg_expr(
-    r'''^(?P<spaces>\s*)
-    \@(?P<name>(?:END\s*|ELSE\s*)?[A-Z]\w*)\b(?P<argument>[^!]*)(\s*!.*)?$''')
 
 _MISPLACED_HEADS = [
     _make_name(head) for head in [
@@ -450,7 +445,7 @@ class FortielParser:
         dir_head = dir_head_word.lower()
         if dir_head_word2 is not None:
             dir_head_word2 = dir_head_word2.lower()
-            if dir_head_word == 'end' or dir_head_word == 'else' and dir_head_word2 == 'if':
+            if dir_head_word == 'end' or (dir_head_word == 'else' and dir_head_word2 == 'if'):
                 dir_head += dir_head_word2
         return dir_head
 
@@ -493,14 +488,14 @@ class FortielParser:
             return func()
         # Determine the error type:
         # either the known directive is misplaced, either the directive is unknown.
-        if head in {'else', 'else if', 'end if',
-                    'end do', 'section', 'finally', 'pattern', 'end macro'}:
+        if head in map(_make_name, {'else', 'else if', 'end if', 'end do',
+                                    'section', 'finally', 'pattern', 'end macro'}):
             message = f'misplaced directive <{head}>'
             raise FortielSyntaxError(message, self._file_path, self._line_number)
         message = f'unknown or mistyped directive <{head}>'
         raise FortielSyntaxError(message, self._file_path, self._line_number)
 
-    def _matches_directive(self, *dir_head_list: str) -> Optional[str]:
+    def _matches_directive(self, *expected_heads: str) -> Optional[str]:
         match = self._matches_line(_FORTIEL_DIRECTIVE)
         if match is not None:
             # Parse continuations and rematch.
@@ -508,7 +503,7 @@ class FortielParser:
             match = self._matches_line(_FORTIEL_DIRECTIVE)
             directive = match['directive'].lower()
             head = type(self)._parse_head(directive)
-            if head in [_make_name(h) for h in dir_head_list]:
+            if head in map(_make_name, expected_heads):
                 return head
         return None
 
@@ -539,7 +534,7 @@ class FortielParser:
             self._match_directive_syntax(_FORTIEL_LET, 'name', 'arguments', 'expression')
         if node.arguments is not None:
             # Remove parentheses and split by commas.
-            node.arguments = [argument.strip() for argument in node.arguments[1:-1].split(',')]
+            node.arguments = map(str.strip, node.arguments[1:-1].split(','))
         return node
 
     def _parse_directive_define(self) -> FortielNodeDefine:
@@ -554,7 +549,7 @@ class FortielParser:
         # Note that we are not evaluating or validating define name here.
         node = FortielNodeDel(self._file_path, self._line_number)
         names = self._match_directive_syntax(_FORTIEL_DEL, 'names')
-        node.names = [name.strip() for name in names.split(',')]
+        node.names = map(str.strip, names.split(','))
         return node
 
     def _parse_directive_if(self) -> FortielNodeIf:
@@ -700,42 +695,15 @@ class FortielExecutor:
         self._imported_files_paths: Set[str] = set()
         self._options: FortielOptions = options
 
-    def _resolve_call_segment(self, index: int, nodes: List[FortielNode]) -> None:
-        """Resolve call segments."""
-        node = cast(FortielNodeCallSegment, nodes[index])
-        macro_node = self._macros.get(node.name)
-        if macro_node is None:
-            message = f'macro `{node.name}` was not previously defined'
-            raise FortielRuntimeError(message, node.file_path, node.line_number)
-        # Convert current node to call node and replace it in the node list.
-        node = nodes[index] = FortielNodeCall(node)
-        if macro_node.construct():
-            # Pop and process nodes until the end of macro construct call is reached.
-            next_index = index + 1
-            end_name = 'end' + node.name
-            while len(nodes) > next_index:
-                next_node = nodes[next_index]
-                if isinstance(next_node, FortielNodeCallSegment):
-                    if next_node.name == end_name:
-                        nodes.pop(next_index)
-                        break
-                    if next_node.name in macro_node.section_names():
-                        call_section_node = FortielNodeCallSection(next_node)
-                        node.call_section_nodes.append(call_section_node)
-                        nodes.pop(next_index)
-                        continue
-                    # Resolve the scoped call.
-                    self._resolve_call_segment(next_index, nodes)
-                # Append the current node to the most recent section of the call node.
-                next_node = nodes.pop(next_index)
-                if len(node.call_section_nodes) == 0:
-                    node.captured_nodes.append(next_node)
-                else:
-                    section_node = node.call_section_nodes[-1]
-                    section_node.captured_nodes.append(next_node)
-            else:
-                message = f'expected `@{end_name}` call segment'
-                raise FortielRuntimeError(message, node.file_path, node.line_number)
+    def execute_tree(self, tree: FortielTree, print_func: FortielPrintFunc) -> None:
+        """Execute the syntax tree or the syntax tree node."""
+        # Print primary line marker.
+        if self._options.line_marker_format == 'fpp':
+            print_func(f'# 1 "{tree.file_path}" 1')
+        elif self._options.line_marker_format == 'cpp':
+            print_func(f'#line 1 "{tree.file_path}" 1')
+        # Execute tree nodes.
+        self._execute_node_list(tree.root_nodes, print_func)
 
     def _evaluate_expression(self, expression: str, file_path: str, line_number: int) -> Any:
         """Evaluate Python expression."""
@@ -800,17 +768,7 @@ class FortielExecutor:
         # Output the processed line.
         return line
 
-    def execute_tree(self, tree: FortielTree, print_func: FortielPrintFunc) -> None:
-        """Execute the syntax tree or the syntax tree node."""
-        # Print primary line marker.
-        if self._options.line_marker_format == 'fpp':
-            print_func(f'# 1 "{tree.file_path}" 1')
-        elif self._options.line_marker_format == 'cpp':
-            print_func(f'#line 1 "{tree.file_path}" 1')
-        # Execute tree nodes.
-        self._execute_node_list(tree.root_nodes, print_func)
-
-    def _execute_node(self, node: FortielNode, print_func: FortielPrintFunc):
+    def _execute_node(self, node: FortielNode, print_func: FortielPrintFunc) -> None:
         """Execute a node."""
         for nodeType, func in {
                 FortielNodeUse: self._execute_node_use,
@@ -1003,6 +961,43 @@ class FortielExecutor:
                 raise FortielRuntimeError(message, node.file_path, node.line_number)
         # Add macro to the scope.
         self._macros[node.name] = node
+
+    def _resolve_call_segment(self, index: int, nodes: List[FortielNode]) -> None:
+        """Resolve call segments."""
+        node = cast(FortielNodeCallSegment, nodes[index])
+        macro_node = self._macros.get(node.name)
+        if macro_node is None:
+            message = f'macro `{node.name}` was not previously defined'
+            raise FortielRuntimeError(message, node.file_path, node.line_number)
+        # Convert current node to call node and replace it in the node list.
+        node = nodes[index] = FortielNodeCall(node)
+        if macro_node.construct():
+            # Pop and process nodes until the end of macro construct call is reached.
+            next_index = index + 1
+            end_name = 'end' + node.name
+            while len(nodes) > next_index:
+                next_node = nodes[next_index]
+                if isinstance(next_node, FortielNodeCallSegment):
+                    if next_node.name == end_name:
+                        nodes.pop(next_index)
+                        break
+                    if next_node.name in macro_node.section_names():
+                        call_section_node = FortielNodeCallSection(next_node)
+                        node.call_section_nodes.append(call_section_node)
+                        nodes.pop(next_index)
+                        continue
+                    # Resolve the scoped call.
+                    self._resolve_call_segment(next_index, nodes)
+                # Append the current node to the most recent section of the call node.
+                next_node = nodes.pop(next_index)
+                if len(node.call_section_nodes) == 0:
+                    node.captured_nodes.append(next_node)
+                else:
+                    section_node = node.call_section_nodes[-1]
+                    section_node.captured_nodes.append(next_node)
+            else:
+                message = f'expected `@{end_name}` call segment'
+                raise FortielRuntimeError(message, node.file_path, node.line_number)
 
     def _execute_node_call(self, node: FortielNodeCall, print_func: FortielPrintFunc) -> None:
         """Execute CALL node."""
