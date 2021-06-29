@@ -51,7 +51,7 @@ import argparse
 from os import path
 
 from typing import (cast, final,
-                    List, Set, Dict, Tuple, Any, Union,
+                    Final, List, Set, Dict, Tuple, Any, Union,
                     Optional, Callable, Literal, Pattern, Match)
 
 
@@ -116,14 +116,6 @@ class FortielError(Exception):
     def __str__(self) -> str:
         # Format matched GFortran error messages.
         return f'{self.file_path}:{self.line_number}:1:\n\nFatal Error: {self.message}'
-
-
-@final
-class FortielGrammarError(FortielError):
-    """Fortiel grammar error."""
-    def __init__(self, message: str, file_path: str, line_number: int) -> None:
-        super().__init__(
-            f'Fortiel syntax error: {message}', file_path, line_number)
 
 
 @final
@@ -333,48 +325,46 @@ class FortielNodeCallSection(FortielNode):
         self.captured_nodes: List[FortielNode] = []
 
 
-_FORTIEL_DIRECTIVE = _reg_expr(r'^\s*\#[@$]\s*(?P<directive>.*)?$')
-_DIR_HEAD = _reg_expr(r'^(?P<word>[^\s]+)(?:\s+(?P<word2>[^\s]+))?')
+_FORTIEL_DIRECTIVE: Final = _reg_expr(r'^\s*\#[@$]\s*(?P<directive>.*)?$')
+_DIR_HEAD: Final = _reg_expr(r'^(?P<word>[^\s]+)(?:\s+(?P<word2>[^\s]+))?')
 
-_FORTIEL_CALL = _reg_expr(
-    r'''^(?P<spaces>\s*)
-    \@(?P<name>(?:END\s*|ELSE\s*)?[A-Z]\w*)\b(?P<argument>[^!]*)(\s*!.*)?$''')
+_FORTIEL_USE: Final = _reg_expr(r'''
+    ^USE\s+(?P<path>(?:\"[^\"]+\") | (?:\'[^\']+\') | (?:\<[^\>]+\>))$
+    ''')
 
-_FORTIEL_USE = _reg_expr(
-    r'^USE\s+(?P<path>(?:\"[^\"]+\")|(?:\'[^\']+\')|(?:\<[^\>]+\>))$')
+_FORTIEL_LET: Final = _reg_expr(r'''
+    ^LET\s+(?P<name>[A-Z_]\w*)\s*
+    (?P<arguments> \( (?:\*{0,2}[A-Z_]\w*(?:\s*,\s*\*{0,2}[A-Z_]\w*)*)? \s*\) )?\s*
+    =\s*(?P<expression>.*)$
+    ''')
+_FORTIEL_DEFINE: Final = _reg_expr(r'^DEFINE\s+(?P<name>[A-Z_]\w*)\s+(?P<segment>.*)$')
+_FORTIEL_DEL: Final = _reg_expr(r'^DEL\s+(?P<names>[A-Z_]\w*(?:\s*,\s*[A-Z_]\w*)*)$')
 
-_FORTIEL_LET = _reg_expr(
-    r'''^LET\s+(?P<name>[A-Z_]\w*)\s*
-    (?P<arguments>
-      \((?:\*{0,2}[A-Z_]\w*(?:\s*,\s*\*{0,2}[A-Z_]\w*)*)?\s*\))?\s*
-    =\s*(?P<expression>.*)$''')
+_FORTIEL_IF: Final = _reg_expr(r'^IF\s*(?P<condition>.+)$')
+_FORTIEL_ELSE_IF: Final = _reg_expr(r'^ELSE\s*IF\s*(?P<condition>.+)$')
+_FORTIEL_ELSE: Final = _reg_expr(r'^ELSE$')
+_FORTIEL_END_IF: Final = _reg_expr(r'^END\s*IF$')
 
-_FORTIEL_DEFINE = _reg_expr(r'^DEFINE\s+(?P<name>[A-Z_]\w*)\s+(?P<segment>.*)$')
-_FORTIEL_DEL = _reg_expr(r'^DEL\s+(?P<names>[A-Z_]\w*(?:\s*,\s*[A-Z_]\w*)*)$')
+_FORTIEL_DO: Final = _reg_expr(r'^DO\s+(?P<index_name>[A-Z_]\w*)\s*=\s*(?P<ranges>.*)$')
+_FORTIEL_END_DO: Final = _reg_expr(r'^END\s*DO$')
 
-_FORTIEL_IF = _reg_expr(r'^IF\s*(?P<condition>.+)$')
-_FORTIEL_ELSE_IF = _reg_expr(r'^ELSE\s*IF\s*(?P<condition>.+)$')
-_FORTIEL_ELSE = _reg_expr(r'^ELSE$')
-_FORTIEL_END_IF = _reg_expr(r'^END\s*IF$')
+_FORTIEL_FOR: Final = _reg_expr(r'''
+    ^FOR\s+(?P<index_names>[A-Z_]\w*(?:\s*,\s*[A-Z_]\w*)*)\s*IN\s*(?P<expression>.*)$
+    ''')
+_FORTIEL_END_FOR: Final = _reg_expr(r'^END\s*FOR$')
 
-_FORTIEL_DO = _reg_expr(r'^DO\s+(?P<index_name>[A-Z_]\w*)\s*=\s*(?P<ranges>.*)$')
-_FORTIEL_END_DO = _reg_expr(r'^END\s*DO$')
+_FORTIEL_MACRO: Final = _reg_expr(r'^MACRO\s+(?P<name>[A-Z]\w*)(\s+(?P<pattern>.*))?$')
+_FORTIEL_PATTERN: Final = _reg_expr(r'^PATTERN\s+(?P<pattern>.*)$')
+_FORTIEL_SECTION: Final = _reg_expr(r'''
+    ^SECTION\s+(?P<once>ONCE\s+)?(?P<name>[A-Z]\w*)(?:\s+(?P<pattern>.*))?$
+    ''')
+_FORTIEL_FINALLY: Final = _reg_expr(r'^FINALLY$')
+_FORTIEL_END_MACRO: Final = _reg_expr(r'^END\s*MACRO$')
 
-_FORTIEL_FOR = _reg_expr(
-    r'^FOR\s+(?P<index_names>[A-Z_]\w*(?:\s*,\s*[A-Z_]\w*)*)\s*IN\s*(?P<expression>.*)$')
-_FORTIEL_END_FOR = _reg_expr(r'^END\s*FOR$')
-
-_FORTIEL_MACRO = _reg_expr(r'^MACRO\s+(?P<name>[A-Z]\w*)(\s+(?P<pattern>.*))?$')
-_FORTIEL_PATTERN = _reg_expr(r'^PATTERN\s+(?P<pattern>.*)$')
-_FORTIEL_SECTION = _reg_expr(
-    r'^SECTION\s+(?P<once>ONCE\s+)?(?P<name>[A-Z]\w*)(?:\s+(?P<pattern>.*))?$')
-_FORTIEL_FINALLY = _reg_expr(r'^FINALLY$')
-_FORTIEL_END_MACRO = _reg_expr(r'^END\s*MACRO$')
-
-_MISPLACED_HEADS = [
-    _make_name(head) for head in [
-        'else', 'else if', 'end if', 'end do',
-        'section', 'finally', 'pattern', 'end macro']]
+_FORTIEL_CALL: Final = _reg_expr(r'''
+    ^(?P<spaces>\s*)
+    \@(?P<name>(?:END\s*|ELSE\s*)?[A-Z]\w*)\b(?P<argument>[^!]*)(\s*!.*)?$
+    ''')
 
 _BUILTIN_HEADERS = {'.f90': 'tiel/syntax.fd'}
 
