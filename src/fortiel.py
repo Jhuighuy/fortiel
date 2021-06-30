@@ -62,14 +62,24 @@ from typing import (cast, final,
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
+def _make_name(name: str) -> str:
+    """Compile a single-word lower case identifier."""
+    return re.sub(r'\s*', '', name.lower())
+
+
 def _reg_expr(pattern: str) -> Pattern[str]:
     """Compile regular expression."""
     return re.compile(pattern, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
 
 
-def _make_name(name: str) -> str:
-    """Compile a single-word lower case identifier."""
-    return re.sub(r'\s*', '', name.lower())
+def _find_duplicate(strings: List[str]) -> Optional[str]:
+    """Find first duplicate in the list."""
+    strings_set: Set[str] = set()
+    for string in strings:
+        if string in strings_set:
+            return string
+        strings_set.add(string)
+    return None
 
 
 def _find_file(file_path: str, dir_paths: List[str]) -> Optional[str]:
@@ -85,16 +95,6 @@ def _find_file(file_path: str, dir_paths: List[str]) -> Optional[str]:
     rel_file_path = path.join(here, file_path)
     if path.exists(rel_file_path):
         return rel_file_path
-    return None
-
-
-def _find_duplicate(strings: List[str]) -> Optional[str]:
-    """Find first duplicate in the list."""
-    strings_set: Set[str] = set()
-    for string in strings:
-        if string in strings_set:
-            return string
-        strings_set.add(string)
     return None
 
 
@@ -384,7 +384,21 @@ class FortielParser:
     def _advance_line(self) -> None:
         self._line_index += 1
         self._line_number += 1
-        self._line = '' if self._matches_end() else self._lines[self._line_index].rstrip()
+        if self._matches_end():
+            self._line = ''
+        else:
+            self._line = self._lines[self._line_index].rstrip()
+            while self._line.endswith('&'):
+                self._line: str = self._line[:-1] + ' '
+                self._line_index += 1
+                self._line_number += 1
+                if self._matches_end():
+                    message = 'unexpected end of file in continuation lines'
+                    raise FortielSyntaxError(message, self._file_path, self._line_number)
+                next_line = self._lines[self._line_index].lstrip()
+                if next_line.startswith('&'):
+                    next_line = next_line[1:].lstrip()
+                self._line += next_line.rstrip()
 
     def _matches_line(self, *patterns: Pattern[str]) -> Optional[Match[str]]:
         if self._matches_end():
@@ -395,20 +409,6 @@ class FortielParser:
             if match is not None:
                 return match
         return None
-
-    def _parse_line_continuation(self) -> None:
-        """Parse continuation lines."""
-        while self._line.endswith('&'):
-            self._line: str = self._line[:-1] + ' '
-            self._line_index += 1
-            self._line_number += 1
-            if self._matches_end():
-                message = 'unexpected end of file in continuation lines'
-                raise FortielSyntaxError(message, self._file_path, self._line_number)
-            next_line = self._lines[self._line_index].lstrip()
-            if next_line.startswith('&'):
-                next_line = next_line[1:].lstrip()
-            self._line += next_line.rstrip()
 
     def parse(self) -> FortielTree:
         """Parse the source lines."""
@@ -444,7 +444,6 @@ class FortielParser:
         if self._matches_line(_FORTIEL_DIRECTIVE):
             return self._parse_directive()
         if self._matches_line(_FORTIEL_CALL):
-            self._parse_line_continuation()
             return self._parse_directive_call()
         return self._parse_line_list()
 
@@ -460,7 +459,6 @@ class FortielParser:
 
     def _parse_directive(self) -> FortielNode:
         """Parse a directive."""
-        self._parse_line_continuation()
         directive = self._matches_line(_FORTIEL_DIRECTIVE)['directive']
         head = type(self)._parse_head(directive)
         if head is None:
@@ -488,9 +486,6 @@ class FortielParser:
     def _matches_directive(self, *expected_heads: str) -> Optional[str]:
         match = self._matches_line(_FORTIEL_DIRECTIVE)
         if match is not None:
-            # Parse continuations and rematch.
-            self._parse_line_continuation()
-            match = self._matches_line(_FORTIEL_DIRECTIVE)
             directive = match['directive'].lower()
             head = type(self)._parse_head(directive)
             if head in map(_make_name, expected_heads):
@@ -650,10 +645,10 @@ class FortielParser:
         if match is None:
             message = 'invalid call segment syntax'
             raise FortielSyntaxError(message, self._file_path, self._line_number)
-        self._advance_line()
         node.spaces, node.name, node.argument = match.group('spaces', 'name', 'argument')
         node.name = _make_name(node.name)
         node.argument = node.argument.strip()
+        self._advance_line()
         return node
 
 
@@ -667,10 +662,12 @@ class FortielParser:
 _FORTIEL_INLINE_EVAL = _reg_expr(r'\${(?P<expression>.+?)}\$')
 _FORTIEL_INLINE_SHORT_EVAL = _reg_expr(r'[$@]\s*(?P<expression>\w+)\b')
 
-_FORTIEL_INLINE_SHORT_LOOP = _reg_expr(
-    r'(?P<comma_before>,\s*)?[\^@](?P<expression>(?::|\w+))(?P<comma_after>\s*,)?')
-_FORTIEL_INLINE_LOOP = _reg_expr(
-    r'(?P<comma_before>,\s*)?[\^@]{(?P<expression>.*?)}[\^@](?P<comma_after>\s*,)?')
+_FORTIEL_INLINE_SHORT_LOOP = _reg_expr(r'''
+    (?P<comma_before>,\s*)?[\^@](?P<expression>(?::|\w+))(?P<comma_after>\s*,)?
+    ''')
+_FORTIEL_INLINE_LOOP = _reg_expr(r'''
+    (?P<comma_before>,\s*)?[\^@]{(?P<expression>.*?)}[\^@](?P<comma_after>\s*,)?
+    ''')
 
 _BUILTIN_NAMES = ['__INDEX__', '__FILE__', '__LINE__', '__DATE__', '__TIME__']
 
@@ -770,7 +767,8 @@ class FortielExecutor:
                 FortielNodeFor: self._execute_node_for,
                 FortielNodeMacro: self._execute_node_macro,
                 FortielNodeCall: self._execute_node_call,
-                FortielNodeLineList: self._execute_node_line_list}.items():
+                FortielNodeLineList: self._execute_node_line_list
+                }.items():
             if isinstance(node, nodeType):
                 func = cast(Callable[[FortielNode, FortielPrintFunc], None], func)
                 return func(node, print_func)
