@@ -148,6 +148,7 @@ class FortielRuntimeError(FortielError):
 @final
 class FortielOptions:
     """Preprocessor options."""
+    # TODO: refactor as data class.
     def __init__(self) -> None:
         self.defines: List[str] = []
         self.include_paths: List[str] = []
@@ -161,14 +162,6 @@ class FortielOptions:
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
 
-@final
-class FortielTree:
-    """Fortiel syntax tree."""
-    def __init__(self, file_path: str) -> None:
-        self.file_path: str = file_path
-        self.root_nodes: List[FortielNode] = []
-
-
 @dataclass
 class FortielNode(ABC):
     """Fortiel syntax tree node."""
@@ -177,11 +170,18 @@ class FortielNode(ABC):
 
 
 @final
+@dataclass
+class FortielTree:
+    """Fortiel syntax tree."""
+    file_path: str
+    root_nodes: List[FortielNode] = field(default_factory=list)
+
+
+@final
+@dataclass
 class FortielNodeLineList(FortielNode):
     """The list of code lines syntax tree node."""
-    def __init__(self, file_path: str, line_number: int) -> None:
-        super().__init__(file_path, line_number)
-        self.lines: List[str] = []
+    lines: List[str] = field(default_factory=list)
 
 
 @final
