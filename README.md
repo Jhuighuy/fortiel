@@ -19,67 +19,50 @@ pip3 install fortiel
 ## Directives
 Common directive syntax is:
 ```fortran
-#$ directiveName directiveArguments
+#$directiveName directiveArguments
 ! or
-#@ directiveName directiveArguments
+#@directiveName directiveArguments
 ```
 where `directiveName` is one of the known preprocessor directives.
-The `#$` directive header is treated as a single token, so no
-whitespaces are allowed between `#` and `fpp`.
+The `#$` directive header is treated as a single token, so no whitespaces are allowed between `#` and `$` or `@`.
 
 `directiveName` is _case-insensitive_
-(Python expressions and file paths although are _case-sensitive_), 
-so the following lines are equivalent:
+(Python expressions and file paths although are _case-sensitive_), so the following lines are equivalent:
 ```fortran
-#$ use 'filename'
+#$use 'filename'
 ! and
-#@ uSe 'filename'
+#@uSe 'filename'
 ```
 
 
 ### Continuation Lines
-Fortran-style continuation lines `&` are supported within 
-the preprocessor directives:
+Fortran-style continuation lines `&` are supported within the preprocessor directives:
 ```fortran
-#$ directivePart &
-        anotherDirectivePart
+#$ first_directive_part &
+    second_directive_part
 ! and
-#$ directivePart &
-        & anotherDirectivePart
-```
-
-
-### `include` directive
-directly the contents of the file 
-located at `filePath` into the current source:
-```fortran
-#$ include 'filePath'
-! or
-#$ include "filePath"
-! or
-#$ include <filePath>
+#$ first_directive_part &
+    & second_directive_part
 ```
 
 
 ### `use` directive
-is the same as `include`, but it skips the
-non-directive lines:
+is the same as `include`, but it skips the non-directive lines:
 ```fortran
-#$ use 'filePath'
+#$use 'filePath'
 ! or
-#$ use "filePath"
+#$use "filePath"
 ! or
-#$ use <filePath>
+#$use <filePath>
 ```
 
 
 ### `let` directive
 declares a new named variable:
 ```fortran
-#$ let var = expression
+#$let var = expression
 ```
-`expression` should be a valid Python 3 expression, 
-that may refer to the previously defined variables, 
+`expression` should be a valid Python 3 expression, that may refer to the previously defined variables, 
 Fortiel builtins and Python 3 builtins.
 
 Functions can be also declared using the `let` directive:
@@ -88,11 +71,13 @@ Functions can be also declared using the `let` directive:
 ```
 
 
+### `define` directive
+
+
 ### `del` directive
-undefines the names, previously defined with 
-the `let` directive:
+undefines the names, previously defined with the `let` directive:
 ```fortran
-#$ del var[, anotherVar]*
+#$del var[, anotherVar]*
 ```
 Builtin names like `__FILE__` or `__LINE__` cannot be undefined.
 
@@ -100,64 +85,50 @@ Builtin names like `__FILE__` or `__LINE__` cannot be undefined.
 ### `if`/`else if`/`else`/`end if` directive
 is a classic conditional directive:
 ```fortran
-#$ if condition
-  ! Fortran code.
-#$ else if condition
-  ! Fortran code.
-#$ else
-  ! Fortran code.
-#$ end if
+#$if condition
+    ! Fortran code.
+#$else if condition
+    ! Fortran code.
+#$else
+    ! Fortran code.
+#$end if
 ```
-Note that `else if`, `elseif` and `elif` directives, 
-`end if` and `endif` directives are respectively equivalent.
+Note that `else if`, `elseif` and `elif` directives, `end if` and `endif` directives are respectively equivalent.
 
 
 ### `do`/`end do` directive
 substitutes the source lines multiple times:
 ```fortran 
-#$ do var = first, last[, step]
-  ! Fortran code.
-#$ end do
+#$do var = first, last[, step]
+    ! Fortran code.
+#$end do
 ```
-`first`, `last` and optional `step` expressions should 
-evaluate to integers.
-Inside the loop body a special integer variable `__INDEX__` is 
-defined, which is equal to the the current value of `var`.
+`first`, `last` and optional `step` expressions should evaluate to integers.
+Inside the loop body a special integer variable `__INDEX__` is defined, which is equal to the current value of `var`.
 
 Note that `end do` and `enddo` directives are equivalent.
-
-
-### `line` directive
-changes current line number and file path:
-```fortran
-#$ [line] lineNumber 'filePath'
-! or
-#$ [line] lineNumber "filePath"
-```
 
 
 ## In-line substitutions
 
 
-### `` `x` `` substitutions
+### `${expression}$` and `$name` substitutions
 Consider the example:
 ```fortran
-#$ let x = 'b'
-a`x`   ! evaluates to ab;
-`3*x`a ! evaluates to bbba.
+#$let x = 'b'
+a$x         ! evaluates to ab;
+${3*x}$a    ! evaluates to bbba.
 ```
 
 
-### `@x` substitution
-is a special substitution that becomes handy inside 
-the `#$ do` loops:
+### `^{segment}^`, `^word` and `^:` substitution
+is a special substitution that becomes handy inside the `#$do` loops:
 ```fortran
 @var[,]
 ! or
 @:[,]
 ```
-This substitution spawns the token after `@` (an identifier 
-or colon character), and an optional trailing comma,
+This substitution spawns the token after `@` (an identifier or colon character), and an optional trailing comma,
 the `__INDEX__` amount of times.
 
 Consider the example:
