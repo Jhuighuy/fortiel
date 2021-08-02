@@ -71,9 +71,12 @@ def _make_name(name: str) -> str:
     return re.sub(r'\s+', '', name).lower()
 
 
-def _compile_re(pattern: str) -> Pattern[str]:
+def _compile_re(pattern: str, dotall: bool = False) -> Pattern[str]:
     """Compile regular expression."""
-    return re.compile(pattern, re.IGNORECASE | re.MULTILINE | re.VERBOSE)
+    flags = re.IGNORECASE | re.MULTILINE | re.VERBOSE
+    if dotall:
+        flags |= re.DOTALL
+    return re.compile(pattern, flags)
 
 
 def _find_duplicate(strings: Iterable[str]) -> Optional[str]:
@@ -727,16 +730,16 @@ class FortielParser:
 
 FortielPrintFunc = Callable[[str], None]
 
-_FORTIEL_INLINE_EVAL: Final = _compile_re(r'\${(?P<expression>.+?)}\$')
-_FORTIEL_INLINE_SHORT_EVAL: Final = _compile_re(r'[$@]\s*(?P<expression>\w+)\b')
+_FORTIEL_INLINE_EVAL: Final = _compile_re(r'\${(?P<expression>.+?)}\$', True)
+_FORTIEL_INLINE_SHORT_EVAL: Final = _compile_re(r'[$@](?P<expression>\w+)\b', True)
 
 _FORTIEL_INLINE_SHORT_LOOP: Final = _compile_re(r'''
     (?P<comma_before>,\s*)?
-        [\^@](?P<expression>:|\w+) (?P<comma_after>\s*,)?''')
+        [\^@](?P<expression>:|\w+) (?P<comma_after>\s*,)?''', True)
 _FORTIEL_INLINE_LOOP: Final = _compile_re(r'''
     (?P<comma_before>,\s*)?
        [\^@]{ (?P<expression>.*?) ([\^@]\|[\^@] (?P<ranges_expression>.*?) )? }[\^@] 
-                                                            (?P<comma_after>\s*,)?''')
+                                                            (?P<comma_after>\s*,)?''', True)
 
 # TODO: implement builtins correctly.
 _FORTIEL_BUILTINS_NAMES = [
@@ -768,6 +771,8 @@ class FortielExecutor:
     def _evaluate_expression(self, expression: str, file_path: str, line_number: int) -> Any:
         """Evaluate Python expression."""
         try:
+            # TODO: when we should correctly remove the line continuations?
+            expression = expression.replace('&\n', '\n')
             self._scope.update(__FILE__=file_path, __LINE__=line_number)
             value = eval(expression, self._scope)
             return value
