@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.9
 # -*- coding: utf-8 -*-
 # pylint: disable=too-many-lines, eval-used
 
@@ -48,6 +48,7 @@ Fortiel language translator and executor.
 
 import re
 import argparse
+import sys
 from os import path
 from abc import ABC
 from dataclasses import dataclass, field
@@ -1173,7 +1174,9 @@ def main() -> None:
         'file_path', help='input file path')
     arg_parser.add_argument(
         '-o', '--output_file_path', default=None, help='output file path')
+
     args = arg_parser.parse_args()
+
     # Get input and output file paths.
     file_path = args.file_path
     output_file_path = args.output_file_path
