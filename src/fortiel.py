@@ -930,7 +930,7 @@ class FortielExecutor:
         if imported_file_path not in self._imported_files_paths:
             self._imported_files_paths.add(imported_file_path)
             try:
-                with open(imported_file_path, mode='r') as imported_file:
+                with open(imported_file_path, mode='r', encoding='utf-8') as imported_file:
                     imported_file_lines = imported_file.read().splitlines()
             except IsADirectoryError as error:
                 message = f'`{node.imported_file_path}` is a directory'
@@ -1141,7 +1141,7 @@ def fortiel_preprocess(
         options: FortielOptions = FortielOptions()) -> None:
     """Preprocess the source file."""
     # Read the input file and parse it.
-    with open(file_path, 'r') as file:
+    with open(file_path, mode='r', encoding='utf-8') as file:
         lines = file.read().splitlines()
     tree = FortielParser(file_path, lines).parse()
     # Execute parse tree and print to output file.
@@ -1149,7 +1149,7 @@ def fortiel_preprocess(
     if output_file_path is None:
         executor.execute_tree(tree, print)
     else:
-        with open(output_file_path, 'w') as output_file:
+        with open(output_file_path, mode='w', encoding='utf-8') as output_file:
             executor.execute_tree(tree, lambda line: print(line, file=output_file))
 
 
