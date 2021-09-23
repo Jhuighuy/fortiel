@@ -742,6 +742,8 @@ _FORTIEL_INLINE_LOOP: Final = _compile_re(r'''
        [\^@]{ (?P<expression>.*?) ([\^@]\|[\^@] (?P<ranges_expression>.*?) )? }[\^@] 
                                                             (?P<comma_after>\s*,)?''', True)
 
+_FORTIEL_CMDARG_DEFINE: Final = _compile_re(r'(?P<name>\w+)(?:\s*=\s*(?P<value>.*))')
+
 # TODO: implement builtins correctly.
 _FORTIEL_BUILTINS_NAMES = [
     '__INDEX__', '__FILE__', '__LINE__', '__DATE__', '__TIME__']
@@ -754,6 +756,13 @@ class FortielExecutor:
         self._macros: Dict[str, FortielMacroNode] = {}
         self._imported_files_paths: Set[str] = set()
         self._options: FortielOptions = options
+
+        self._scope['defined'] = self._defined
+        for define in self._options.defines:
+            define_name, define_value = \
+                _FORTIEL_CMDARG_DEFINE.match(define).group('name', 'value')
+            define_value = self._evaluate_expression(define_value, '<shell>', 1)
+            self._scope[define_name] = define_value
 
     def _defined(self, name: str) -> bool:
         return name in self._scope
@@ -1173,7 +1182,7 @@ def main() -> None:
     arg_parser.add_argument(
         'file_path', help='input file path')
     arg_parser.add_argument(
-        '-o', '--output_file_path', default=None, help='output file path')
+        '-o', '--output_file_path', metavar='output_file_path', default=None, help='output file path')
 
     args = arg_parser.parse_args()
 
